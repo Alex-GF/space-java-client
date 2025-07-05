@@ -1,0 +1,41 @@
+saasName: ikea
+createdAt: "2025-07-03"
+version: beta
+syntaxVersion: "3.0"
+currency: USD
+features:
+  food:
+    valueType: BOOLEAN
+    defaultValue: true
+    type: DOMAIN
+  warehouse:
+    valueType: BOOLEAN
+    defaultValue: false
+    type: DOMAIN
+  furniture:
+    valueType: BOOLEAN
+    defaultValue: true
+    type: DOMAIN
+usageLimits:
+  warehouseLimit:
+    valueType: NUMERIC
+    defaultValue: 0
+    type: NON_RENEWABLE
+    trackable: true
+    linkedFeatures:
+      - warehouse
+plans:
+  SINGLE:
+    price: 1.99
+    unit: user/month
+    features: null
+    usageLimits: null
+  FAMILY:
+    price: 4.99
+    unit: user/month
+    features:
+      warehouse:
+        value: true
+    usageLimits:
+      warehouseLimit:
+        value: 500
