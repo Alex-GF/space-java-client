@@ -1,4 +1,4 @@
-package io.github.isagroup.space.springboot.client.contracts;
+package io.github.isagroup.space.client.contracts;
 
 import java.util.Objects;
 

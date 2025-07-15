@@ -1,4 +1,4 @@
-package io.github.isagroup.space.springboot.client.users;
+package io.github.isagroup.space.client.users;
 
 import java.util.Objects;
 

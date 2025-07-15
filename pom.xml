@@ -2,18 +2,14 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-	<parent>
-		<groupId>org.springframework.boot</groupId>
-		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.5.3</version>
-		<relativePath/> <!-- lookup parent from repository -->
-	</parent>
+
 	<groupId>io.github.isa-group.space</groupId>
-	<artifactId>space-spring-boot-client</artifactId>
+	<artifactId>space-client</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>space-spring-boot-client</name>
-	<description>Space API client for Spring Boot</description>
+	<name>space-client</name>
+	<description>Space API REST client</description>
 	<url/>
+	
 	<licenses>
 		<license>
 			<name>MIT</name>
@@ -21,13 +17,16 @@
 			<distribution>repo</distribution>
 		</license>
 	</licenses>
+
 	<organization>
 		<name>ISA Group</name>
 		<url>https://www.isa.us.es/</url>
 	</organization>
+
 	<developers>
 		<developer/>
 	</developers>
+
 	<scm>
 		<connection>scm:git:git://github.com/Alex-GF/space-java-client.git</connection>
 		<developerConnection>scm:git:ssh://github.com/Alex-GF/space-java-client.git</developerConnection>
@@ -35,28 +34,15 @@
 		<tag>HEAD</tag>
 	</scm>
 	<properties>
-		<java.version>21</java.version>
+		<maven.compiler.source>21</maven.compiler.source>
+		<maven.compiler.target>21</maven.compiler.target>
 	</properties>
+
 	<dependencies>
 		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-web</artifactId>
-		</dependency>
-
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-test</artifactId>
-			<scope>test</scope>
+			<groupId>com.squareup.okhttp3</groupId>
+			<artifactId>okhttp</artifactId>
+			<version>5.1.0</version>
 		</dependency>
 	</dependencies>
-
-	<build>
-		<plugins>
-			<plugin>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-maven-plugin</artifactId>
-			</plugin>
-		</plugins>
-	</build>
-
 </project>

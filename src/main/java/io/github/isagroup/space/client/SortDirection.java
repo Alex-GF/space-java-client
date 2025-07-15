@@ -1,4 +1,4 @@
-package io.github.isagroup.space.springboot.client;
+package io.github.isagroup.space.client;
 
 public enum SortDirection {
     ASCENDING,

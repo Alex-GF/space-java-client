@@ -1,4 +1,4 @@
-package io.github.isagroup.space.springboot.client.services;
+package io.github.isagroup.space.client.services;
 
 public enum PricingAvailabilityStatus {
     ACTIVE, ARCHIVED;

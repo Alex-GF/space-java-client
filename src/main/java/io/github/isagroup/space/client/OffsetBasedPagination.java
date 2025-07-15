@@ -1,4 +1,4 @@
-package io.github.isagroup.space.springboot.client;
+package io.github.isagroup.space.client;
 
 public class OffsetBasedPagination extends Pagination {
 
