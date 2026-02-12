@@ -1,0 +1,47 @@
+{
+  "id": "68050bd09890322c57842f6f",
+  "userContact": {
+    "userId": "{{request.path.userId}}",
+    "username": "alex"
+  },
+  "billingPeriod": {
+    "startDate": "2025-12-31T00:00:00Z",
+    "endDate": "2025-12-31T00:00:00Z",
+    "autoRenew": false,
+    "renewalDays": 30
+  },
+  "usageLevels": {
+    "zoom": {
+      "maxSeats": {
+        "consumed": 10
+      }
+    },
+    "petclinic": {
+      "maxPets": {
+        "consumed": 2
+      },
+      "maxVisits": {
+        "consumed": 5,
+        "resetTimeStamp": "2025-07-31T00:00:00Z"
+      }
+    }
+  },
+  "contractedServices": {
+    "zoom": "2025",
+    "petclinic": "2024"
+  },
+  "subscriptionPlans": {
+    "zoom": "ENTERPRISE",
+    "petclinic": "GOLD"
+  },
+  "subscriptionAddOns": {
+    "zoom": {
+      "extraSeats": 2,
+      "hugeMeetings": 1
+    },
+    "petclinic": {
+      "petsAdoptionCentre": 1
+    }
+  },
+  "history": []
+}

@@ -1,0 +1,30 @@
+{
+  "id": "68050bd09890322c57842f6f",
+  "userContact": {{jsonPath request.body '$.userContact'}},
+  "billingPeriod": {
+    "startDate": "2025-12-31T00:00:00Z",
+    "endDate": "2025-12-31T00:00:00Z",
+    "autoRenew": true,
+    "renewalDays": {{jsonPath request.body '$.billingPeriod.renewalDays'}}
+  },
+  "usageLevels": {
+    "zoom": {
+      "maxSeats": {
+        "consumed": 10
+      }
+    },
+    "petclinic": {
+      "maxPets": {
+        "consumed": 2
+      },
+      "maxVisits": {
+        "consumed": 5,
+        "resetTimeStamp": "2025-07-31T00:00:00Z"
+      }
+    }
+  },
+  "contractedServices": {{jsonPath request.body '$.contractedServices'}},
+  "subscriptionPlans": {{jsonPath request.body '$.subscriptionPlans'}},
+  "subscriptionAddOns": {{jsonPath request.body '$.subscriptionAddOns'}},
+  "history": []
+}

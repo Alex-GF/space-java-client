@@ -1,0 +1,10 @@
+{
+  "eval": true,
+  "used": {
+    "petclinic-featureALimit": 100
+  },
+  "limit": {
+    "petclinic-featureALimit": 500
+  },
+  "error": null
+}

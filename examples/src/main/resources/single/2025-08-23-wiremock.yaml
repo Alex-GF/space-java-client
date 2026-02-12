@@ -1,0 +1,79 @@
+saasName: WireMock
+syntaxVersion: "3.0"
+createdAt: 2025-08-23
+version: "2025"
+currency: USD
+url: https://web.archive.org/web/20250823073700/https://www.wiremock.io/get-pricing
+features:
+  mockAPI:
+    description: Get rid of testing environment infrastructure bills.
+    type: DOMAIN
+    valueType: BOOLEAN
+    defaultValue: true
+    expression:
+      pricingContext['features']['mockAPI'] &&
+      (subscriptionContext['mockAPICallsLimit'] < pricingContext['usageLimits']['mockAPICallsLimit'])
+  RBAC:
+    description: Connect your SSO provider for easy access
+    type: DOMAIN
+    valueType: BOOLEAN
+    defaultValue: false
+    expression: pricingContext['features']['RBAC']
+  gitSync:
+    description: Use an OpenAPI spec in Git as the source of truth for your mock APis
+    type: DOMAIN
+    valueType: BOOLEAN
+    defaultValue: false
+    expression: pricingContext['features']['gitSync']
+  testDataImport:
+    description: Connect external data sources to instantly bring your test data into your mock APIs
+    type: DOMAIN
+    valueType: BOOLEAN
+    defaultValue: false
+    expression: pricingContext['features']['testDataImport']
+  fakeDataGeneration:
+    description: Choose from hundreds of patterns tor randomly generating critical test data
+    type: DOMAIN
+    valueType: BOOLEAN
+    defaultValue: false
+    expression: pricingContext['features']['fakeDataGeneration']
+usageLimits:
+  mockAPICallsLimit:
+    type: RENEWABLE
+    valueType: NUMERIC
+    defaultValue: 1000
+    period:
+      value: 1
+      unit: MONTH
+    unit: call/month
+    linkedFeatures:
+      - mockAPI
+  maxUsers:
+    type: NON_RENEWABLE
+    valueType: NUMERIC
+    trackable: true
+    defaultValue: 1
+    unit: user
+plans:
+  Free:
+    description: $0 free forever. No credit card required.
+    price: 0
+    features: null
+    usageLimits: null
+  Enterprise:
+    description: For larger teams or API Volume
+    price: Get in touch
+    features:
+      RBAC:
+        value: true
+      gitSync:
+        value: true
+      testDataImport:
+        value: true
+      fakeDataGeneration:
+        value: true
+    usageLimits:
+      mockAPICallsLimit:
+        value: .inf
+      maxUsers:
+        value: .inf

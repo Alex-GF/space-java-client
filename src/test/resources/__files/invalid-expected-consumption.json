@@ -1,0 +1,9 @@
+{
+  "eval": false,
+  "limit": null,
+  "used": null,
+  "error": {
+    "code": "INVALID_EXPECTED_CONSUMPTION",
+    "message": "No expectedConsumption value was provided for limit 'petclinic-featureA', which is used in the evaluation of feature '{{request.path.featureId}}'. Please note that if you provide an expectedConsumption for any limit, you must provide it for all limits involved in that feature's evaluation."
+  }
+}
