@@ -1,3 +1,29 @@
+# Compiled class files
+*.class
+
+# Log files
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# virtual machine crash logs
+hs_err_pid*
+replay_pid*
+
+# Maven
 target/
 pom.xml.tag
 pom.xml.releaseBackup
@@ -16,17 +42,37 @@ buildNumber.properties
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
 
-# VSCode
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
 
-.vscode
-
-# Intellij
+# IDE - IntelliJ IDEA
 .idea/
-*.iml
 *.iws
+*.iml
+*.ipr
+out/
+
+# IDE - VSCode
+.vscode/
+
+# IDE - NetBeans
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
 
 # Metals
 .metals/
 
 # Mac
 .DS_Store
+
+# Other
+*.swp
+*.swo
+*~
+.cache
+
