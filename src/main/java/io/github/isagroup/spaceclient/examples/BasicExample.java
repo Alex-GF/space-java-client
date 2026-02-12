@@ -3,6 +3,7 @@ package io.github.isagroup.spaceclient.examples;
 import io.github.isagroup.spaceclient.SpaceClient;
 import io.github.isagroup.spaceclient.SpaceClientFactory;
 import io.github.isagroup.spaceclient.types.*;
+import io.github.isagroup.spaceclient.types.ContractToCreate.BillingPeriodToCreate;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -30,6 +31,8 @@ public class BasicExample {
             UserContact userContact = new UserContact("user123", "john_doe");
             userContact.setEmail("john@example.com");
 
+            BillingPeriodToCreate billingPeriod = new BillingPeriodToCreate(true, 30);
+
             Map<String, String> contractedServices = new HashMap<>();
             contractedServices.put("serviceA", "pricing/v1");
 
@@ -38,6 +41,7 @@ public class BasicExample {
 
             ContractToCreate contractToCreate = new ContractToCreate(
                 userContact,
+                billingPeriod,
                 contractedServices,
                 subscriptionPlans,
                 new HashMap<>()

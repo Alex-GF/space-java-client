@@ -87,6 +87,7 @@ public class ContractModule {
      */
     public Contract addContract(ContractToCreate contractToCreate) throws IOException {
         String json = objectMapper.writeValueAsString(contractToCreate);
+
         RequestBody body = RequestBody.create(json, JSON);
 
         Request request = new Request.Builder()

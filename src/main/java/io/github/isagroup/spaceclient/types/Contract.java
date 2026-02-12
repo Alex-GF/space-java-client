@@ -9,11 +9,17 @@ import java.util.Map;
  */
 public class Contract {
     
+    @JsonProperty("id")
+    private String id;
+
     @JsonProperty("userContact")
     private UserContact userContact;
     
     @JsonProperty("billingPeriod")
     private BillingPeriod billingPeriod;
+    
+    @JsonProperty("organizationId")
+    private String organizationId;
     
     @JsonProperty("usageLevels")
     private Map<String, Map<String, UsageLevel>> usageLevels;
@@ -29,6 +35,7 @@ public class Contract {
     
     @JsonProperty("history")
     private List<ContractHistoryEntry> history;
+    
 
     public Contract() {
     }
@@ -88,6 +95,14 @@ public class Contract {
 
     public void setHistory(List<ContractHistoryEntry> history) {
         this.history = history;
+    }
+
+    public String getOrganizationId() {
+        return organizationId;
+    }
+
+    public void setOrganizationId(String organizationId) {
+        this.organizationId = organizationId;
     }
 
     public String getUserId() {

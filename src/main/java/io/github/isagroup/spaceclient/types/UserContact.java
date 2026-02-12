@@ -1,12 +1,12 @@
 package io.github.isagroup.spaceclient.types;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.Date;
-import java.util.Map;
 
 /**
  * User contact information
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class UserContact {
     
     @JsonProperty("userId")
@@ -30,9 +30,27 @@ public class UserContact {
     public UserContact() {
     }
 
+    /**
+     * Constructor with userId and username only.
+     * Sets firstName and lastName to empty strings to avoid SPACE validation errors.
+     */
     public UserContact(String userId, String username) {
         this.userId = userId;
         this.username = username;
+        this.firstName = ""; // Default empty string to satisfy SPACE requirements
+        this.lastName = "";  // Default empty string to satisfy SPACE requirements
+    }
+
+    /**
+     * Full constructor with all contact information
+     */
+    public UserContact(String userId, String username, String firstName, String lastName, String email, String phone) {
+        this.userId = userId;
+        this.username = username;
+        this.firstName = firstName != null ? firstName : "";
+        this.lastName = lastName != null ? lastName : "";
+        this.email = email;
+        this.phone = phone;
     }
 
     // Getters and Setters

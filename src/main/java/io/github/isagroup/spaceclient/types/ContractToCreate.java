@@ -26,9 +26,10 @@ public class ContractToCreate {
     public ContractToCreate() {
     }
 
-    public ContractToCreate(UserContact userContact, Map<String, String> contractedServices,
+    public ContractToCreate(UserContact userContact, BillingPeriodToCreate billingPeriod, Map<String, String> contractedServices,
                            Map<String, String> subscriptionPlans, Map<String, Map<String, Integer>> subscriptionAddOns) {
         this.userContact = userContact;
+        this.billingPeriod = billingPeriod;
         this.contractedServices = contractedServices;
         this.subscriptionPlans = subscriptionPlans;
         this.subscriptionAddOns = subscriptionAddOns;
