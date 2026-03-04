@@ -44,7 +44,6 @@ public class FeatureModule {
    * @param details             Whether to include details in the response
    * @param server              Whether to use server-side evaluation
    * @return The evaluation result
-   * @throws IOException If the operation fails
    */
   public FeatureEvaluationResult evaluate(String userId, String featureId,
       Map<String, Number> expectedConsumption,
@@ -127,7 +126,6 @@ public class FeatureModule {
    * @param userId    The ID of the user for whom the feature is being evaluated
    * @param featureId The ID of the feature to be evaluated
    * @return The evaluation result
-   * @throws IOException If the operation fails
    */
   public FeatureEvaluationResult evaluate(String userId, String featureId) {
     return evaluate(userId, featureId, new HashMap<>(), false, false);
@@ -141,7 +139,6 @@ public class FeatureModule {
    * @param featureId           The ID of the feature to be evaluated
    * @param expectedConsumption Expected consumption values for the feature
    * @return The evaluation result
-   * @throws IOException If the operation fails
    */
   public FeatureEvaluationResult evaluate(String userId, String featureId, Map<String, Number> expectedConsumption) {
     return evaluate(userId, featureId, expectedConsumption, false, false);
@@ -158,7 +155,6 @@ public class FeatureModule {
    * @param revertToLatest Whether to reset to the latest stored value (true =>
    *                       newest | false => oldest)
    * @return true if the revert operation was successful
-   * @throws IOException If the operation fails
    */
   public boolean revertEvaluation(String userId, String featureId, boolean revertToLatest) {
     try {
@@ -200,7 +196,6 @@ public class FeatureModule {
    * @param userId    The ID of the user for whom the feature is being evaluated
    * @param featureId The ID of the feature to be evaluated
    * @return true if the revert operation was successful
-   * @throws IOException If the operation fails
    */
   public boolean revertEvaluation(String userId, String featureId) {
     return revertEvaluation(userId, featureId, true);
@@ -213,7 +208,6 @@ public class FeatureModule {
    * @param userId The ID of the user for whom the pricing token is being
    *               generated
    * @return The generated pricing token
-   * @throws IOException If the operation fails
    */
   public String generateUserPricingToken(String userId) {
     try {

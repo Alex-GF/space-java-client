@@ -37,9 +37,9 @@ public class ContractModule {
      *
      * @param userId The ID of the user whose contract is to be retrieved
      * @return The user's contract data
-     * @throws IOException If the operation fails
      */
-    public Contract getContract(String userId) throws IOException {
+    public Contract getContract(String userId) {
+      try{
         CacheModule cache = spaceClient.cache;
         String cacheKey = cache.getContractKey(userId);
 
@@ -74,7 +74,11 @@ public class ContractModule {
             }
 
             return contract;
-        }
+        } 
+      }catch (IOException e) {
+          logger.error("Failed to get contract for userId: {}", userId, e);
+          return null;
+      }
     }
 
     /**
@@ -83,9 +87,9 @@ public class ContractModule {
      *
      * @param contractToCreate The contract details to be created
      * @return The created contract
-     * @throws IOException If the operation fails
      */
-    public Contract addContract(ContractToCreate contractToCreate) throws IOException {
+    public Contract addContract(ContractToCreate contractToCreate) {
+      try{
         String json = objectMapper.writeValueAsString(contractToCreate);
 
         RequestBody body = RequestBody.create(json, JSON);
@@ -116,6 +120,10 @@ public class ContractModule {
 
             return contract;
         }
+      } catch (IOException e) {
+          logger.error("Failed to add contract for userId: {}", contractToCreate.getUserContact().getUserId(), e);
+          return null;
+      }
     }
 
     /**
@@ -125,9 +133,9 @@ public class ContractModule {
      * @param userId The ID of the user whose subscription is to be updated
      * @param newSubscription The new subscription details to be applied
      * @return The updated contract
-     * @throws IOException If the operation fails
      */
-    public Contract updateContractSubscription(String userId, Subscription newSubscription) throws IOException {
+    public Contract updateContractSubscription(String userId, Subscription newSubscription) {
+      try{
         String json = objectMapper.writeValueAsString(newSubscription);
         RequestBody body = RequestBody.create(json, JSON);
 
@@ -156,5 +164,9 @@ public class ContractModule {
 
             return contract;
         }
+      } catch (IOException e) {
+          logger.error("Failed to update contract subscription for userId: {}", userId, e);
+          return null;
+      }
     }
 }

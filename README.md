@@ -106,7 +106,7 @@ import java.util.HashMap;
 // Simple evaluation (read-only)
 FeatureEvaluationResult result = client.features.evaluate("user123", "serviceA-featureX");
 
-if (result.isEval()) {
+if (result.getEval()) {
     System.out.println("Feature is enabled for user");
 }
 

@@ -71,9 +71,6 @@ public class BasicExample {
             String token = client.features.generateUserPricingToken("user123");
             System.out.println("Pricing token: " + token);
 
-        } catch (IOException e) {
-            System.err.println("Error: " + e.getMessage());
-            e.printStackTrace();
         } finally {
             // Always close the client
             client.close();
