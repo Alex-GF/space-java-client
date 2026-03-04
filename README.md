@@ -32,6 +32,95 @@ Add the following dependency to your `pom.xml`:
 </dependency>
 ```
 
+## Usage Guide
+
+### 1) Plain Java Application
+
+Use `SpaceClientFactory` to create a client and call modules directly.
+
+```java
+import io.github.isagroup.spaceclient.SpaceClient;
+import io.github.isagroup.spaceclient.SpaceClientFactory;
+import io.github.isagroup.spaceclient.types.FeatureEvaluationResult;
+
+SpaceClient client = SpaceClientFactory.connect(
+    "http://localhost:3000",
+    "your-api-key",
+    10000
+);
+
+FeatureEvaluationResult evaluation = client.features.evaluate("user123", "serviceA-featureX");
+if (evaluation.getEval()) {
+    System.out.println("Feature enabled");
+}
+
+String pricingToken = client.features.generateUserPricingToken("user123");
+System.out.println(pricingToken);
+
+client.close();
+```
+
+### 2) Spring Application
+
+For Spring integration, configure a `SpaceClient` bean and a `SpringPricingConfigurator` implementation.
+If you use `@RequireFeature`, make sure Spring AOP is enabled in your project (for example, with `spring-boot-starter-aop`).
+
+#### 2.1 Configure properties
+
+```properties
+space.client.url=http://localhost:3000
+space.client.api-key=your-api-key
+space.client.timeout=10000
+```
+
+#### 2.2 Register configuration
+
+```java
+import io.github.isagroup.spaceclient.spring.SpaceClientAutoConfiguration;
+import io.github.isagroup.spaceclient.spring.config.SpringPricingConfigurator;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+@Configuration
+@EnableAspectJAutoProxy
+@Import(SpaceClientAutoConfiguration.class)
+public class SpacePricingConfig {
+
+    @Bean
+    public SpringPricingConfigurator springPricingConfigurator() {
+        return new SpringPricingConfigurator() {
+            @Override
+            public String resolveUserId(ProceedingJoinPoint joinPoint) {
+                var auth = SecurityContextHolder.getContext().getAuthentication();
+                return auth != null ? auth.getName() : null;
+            }
+        };
+    }
+}
+```
+
+#### 2.3 Protect methods with `@RequireFeature`
+
+```java
+import io.github.isagroup.spaceclient.annotations.RequireFeature;
+import org.springframework.stereotype.Service;
+
+@Service
+public class ExportService {
+
+    @RequireFeature("premium-export")
+    public String exportReport() {
+        return "exported";
+    }
+}
+```
+
+See the complete annotation guide in [REQUIRE_FEATURE_ANNOTATION.md](REQUIRE_FEATURE_ANNOTATION.md).
+
 ## Quick Start
 
 ### Basic Connection
