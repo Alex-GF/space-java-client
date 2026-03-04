@@ -26,7 +26,6 @@ jobs:
           mkdir -p ~/.gnupg
           chmod 700 ~/.gnupg
           echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
-          - name: Import GPG key
       - name: Import GPG keys
         run: |
           echo "${{ secrets.OSSRH_GPG_SECRET_KEY }}" | gpg --batch --import
