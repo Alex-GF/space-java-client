@@ -5,31 +5,24 @@ import io.github.isagroup.spaceclient.types.SpaceConnectionOptions;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * Abstract base class for Spring pricing integration configuration.
  * 
- * This class defines how the SPACE client is initialized and how user context is resolved
- * within a Spring application. Implementations should provide:
+ * This class defines how user context is resolved within a Spring application.
+ * The SpaceClient instance must be provided by your application as a @Bean.
  * 
- * 1. Connection details (URL and API key)
- * 2. User context resolution strategy
- * 3. Optional consumption tracking
+ * Implementations must provide:
+ * 1. User context resolution strategy via resolveUserId()
+ * 
+ * Optional:
+ * 2. Override shouldEvaluateFeature() for custom evaluation logic
  * 
  * Example implementation:
  * <pre>
  * &#64;Component
  * public class MyPricingConfigurator extends SpringPricingConfigurator {
- *     
- *     &#64;Override
- *     protected String getSpaceUrl() {
- *         return System.getenv("SPACE_SERVER_URL");
- *     }
- *     
- *     &#64;Override
- *     protected String getSpaceApiKey() {
- *         return System.getenv("SPACE_API_KEY");
- *     }
  *     
  *     &#64;Override
  *     public String resolveUserId(ProceedingJoinPoint joinPoint) {
@@ -38,52 +31,24 @@ import org.slf4j.LoggerFactory;
  *         return auth != null ? auth.getName() : null;
  *     }
  * }
+ * 
+ * // In your Spring configuration:
+ * &#64;Configuration
+ * public class SpaceClientConfiguration {
+ *     &#64;Bean
+ *     public SpaceClient spaceClient() {
+ *         String url = System.getenv("SPACE_SERVER_URL");
+ *         String apiKey = System.getenv("SPACE_API_KEY");
+ *         SpaceConnectionOptions options = new SpaceConnectionOptions(url, apiKey);
+ *         return new SpaceClient(options);
+ *     }
+ * }
  * </pre>
  */
 public abstract class SpringPricingConfigurator {
-    private static final Logger logger = LoggerFactory.getLogger(SpringPricingConfigurator.class);
-    
+    @Autowired
     private SpaceClient spaceClient;
-    private boolean initialized = false;
-    
-    /**
-     * Gets the SPACE server URL.
-     * Can be overridden to read from configuration files, environment variables, etc.
-     * 
-     * @return the SPACE server URL
-     */
-    protected String getSpaceUrl() {
-        String url = System.getenv("space.client.url");
-        if (url == null || url.isEmpty()) {
-            url = System.getenv("SPACE_CLIENT_URL");
-        }
-        return url;
-    }
-    
-    /**
-     * Gets the SPACE API key.
-     * Can be overridden to read from secure configuration, environment variables, etc.
-     * 
-     * @return the SPACE API key
-     */
-    protected String getSpaceApiKey() {
-        String key = System.getenv("space.client.api-key");
-        if (key == null || key.isEmpty()) {
-            key = System.getenv("SPACE_CLIENT_API_KEY");
-        }
-        return key;
-    }
-    
-    /**
-     * Gets the connection timeout in milliseconds.
-     * Override to customize timeout settings.
-     * 
-     * @return timeout in milliseconds (default: 10000)
-     */
-    protected int getTimeout() {
-        return 10000;
-    }
-    
+
     /**
      * Resolves the user ID from the current request/context.
      * This method must be implemented by subclasses to extract the user ID
@@ -107,78 +72,27 @@ public abstract class SpringPricingConfigurator {
     }
     
     /**
-     * Gets the SpaceClient instance, initializing it if needed.
+     * Gets the SpaceClient instance configured as a Spring bean in the application.
+     * The SpaceClient must be provided by the target application as a @Bean.
      * 
      * @return the SpaceClient instance
-     * @throws IllegalStateException if configuration is invalid
+     * @throws IllegalStateException if SpaceClient is not configured as a bean
      */
-    public synchronized SpaceClient getSpaceClient() {
-        if (!initialized) {
-            initializeSpaceClient();
-            initialized = true;
-        }
-        
+    public SpaceClient getSpaceClient() {
         if (spaceClient == null) {
-            throw new IllegalStateException("SpaceClient is not properly initialized");
+            throw new IllegalStateException(
+                "SpaceClient is not configured as a Spring bean in your application. " +
+                "Ensure you have a @Bean method that creates a SpaceClient instance. " +
+                "Example: \n" +
+                "@Bean\n" +
+                "public SpaceClient spaceClient() {\n" +
+                "    SpaceConnectionOptions options = new SpaceConnectionOptions(url, apiKey);\n" +
+                "    return new SpaceClient(options);\n" +
+                "}"
+            );
         }
-        
         return spaceClient;
     }
     
-    /**
-     * Initializes the SpaceClient with connection options.
-     */
-    private void initializeSpaceClient() {
-        try {
-            String url = getSpaceUrl();
-            String apiKey = getSpaceApiKey();
-            
-            if (url == null || url.isEmpty()) {
-                throw new IllegalStateException(
-                    "SPACE server URL is not configured. " +
-                    "Override getSpaceUrl() or set environment variables: " +
-                    "space.client.url or SPACE_CLIENT_URL"
-                );
-            }
-            
-            if (apiKey == null || apiKey.isEmpty()) {
-                throw new IllegalStateException(
-                    "SPACE API key is not configured. " +
-                    "Override getSpaceApiKey() or set environment variables: " +
-                    "space.client.api-key or SPACE_CLIENT_API_KEY"
-                );
-            }
-            
-            logger.info("Initializing SPACE client (URL: {})", url);
-            
-            SpaceConnectionOptions options = new SpaceConnectionOptions(url, apiKey);
-            options.setTimeout(getTimeout());
-            
-            this.spaceClient = new io.github.isagroup.spaceclient.SpaceClient(options);
-            
-            logger.info("SPACE client initialized successfully");
-            
-        } catch (Exception e) {
-            logger.error("Failed to initialize SPACE client", e);
-            throw new IllegalStateException("Cannot initialize SPACE client: " + e.getMessage(), e);
-        }
-    }
-    
-    /**
-     * Closes the SpaceClient and releases resources.
-     * Call this during application shutdown.
-     */
-    public synchronized void close() {
-        if (spaceClient != null) {
-            try {
-                spaceClient.close();
-                logger.info("SPACE client closed");
-            } catch (Exception e) {
-                logger.warn("Error closing SPACE client", e);
-            } finally {
-                spaceClient = null;
-                initialized = false;
-            }
-        }
-    }
+
 }

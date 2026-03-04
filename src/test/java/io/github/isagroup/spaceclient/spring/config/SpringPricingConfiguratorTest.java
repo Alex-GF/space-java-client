@@ -1,5 +1,6 @@
 package io.github.isagroup.spaceclient.spring.config;
 
+import io.github.isagroup.spaceclient.SpaceClient;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -7,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.lang.reflect.Field;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -21,33 +24,11 @@ class SpringPricingConfiguratorTest {
         }
     }
     
-    private static class CustomUrlConfigurator extends SpringPricingConfigurator {
-        private final String url;
-        private final String apiKey;
-        
-        public CustomUrlConfigurator(String url, String apiKey) {
-            this.url = url;
-            this.apiKey = apiKey;
-        }
-        
-        @Override
-        protected String getSpaceUrl() {
-            return url;
-        }
-        
-        @Override
-        protected String getSpaceApiKey() {
-            return apiKey;
-        }
-        
-        @Override
-        public String resolveUserId(ProceedingJoinPoint joinPoint) {
-            return "test-user";
-        }
-    }
-    
     @Mock
     private ProceedingJoinPoint joinPoint;
+    
+    @Mock
+    private SpaceClient mockSpaceClient;
     
     private SpringPricingConfigurator configurator;
     
@@ -65,110 +46,38 @@ class SpringPricingConfiguratorTest {
     }
     
     @Test
-    @DisplayName("Should get timeout with default value")
-    void shouldGetTimeoutWithDefaultValue() {
-        int timeout = configurator.getTimeout();
-        
-        assertThat(timeout).isEqualTo(10000);
-    }
-    
-    @Test
-    @DisplayName("Should read SPACE URL from environment variable")
-    void shouldReadSpaceUrlFromEnvironment() {
-        String url = configurator.getSpaceUrl();
-        
-        // URL can be null if env vars not set, that's acceptable for this test
-        // The important part is it doesn't throw an exception
-        // In real usage, the exception would be thrown at SpaceClient instantiation time
-    }
-    
-    @Test
-    @DisplayName("Should read SPACE API Key from environment variable")
-    void shouldReadSpaceApiKeyFromEnvironment() {
-        String apiKey = configurator.getSpaceApiKey();
-        
-        // API Key can be null if env vars not set, that's acceptable for this test
-        // The important part is it doesn't throw an exception
-        // In real usage, the exception would be thrown at SpaceClient instantiation time
-    }
-    
-    @Test
-    @DisplayName("Should allow overriding getSpaceUrl()")
-    void shouldAllowOverridingGetSpaceUrl() {
-        SpringPricingConfigurator customConfigurator = 
-            new CustomUrlConfigurator("http://custom-space.com", "custom-key");
-        
-        String url = customConfigurator.getSpaceUrl();
-        
-        assertThat(url).isEqualTo("http://custom-space.com");
-    }
-    
-    @Test
-    @DisplayName("Should allow overriding getSpaceApiKey()")
-    void shouldAllowOverridingGetSpaceApiKey() {
-        SpringPricingConfigurator customConfigurator = 
-            new CustomUrlConfigurator("http://custom-space.com", "custom-key");
-        
-        String apiKey = customConfigurator.getSpaceApiKey();
-        
-        assertThat(apiKey).isEqualTo("custom-key");
-    }
-    
-    @Test
-    @DisplayName("Should throw exception when URL is missing")
-    void shouldThrowExceptionWhenUrlIsMissing() {
-        SpringPricingConfigurator configurator = 
-            new CustomUrlConfigurator(null, "valid-key");
-        
+    @DisplayName("Should throw exception when SpaceClient is not injected")
+    void shouldThrowExceptionWhenSpaceClientNotInjected() {
         assertThatThrownBy(configurator::getSpaceClient)
             .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("SPACE server URL is not configured");
+            .hasMessageContaining("SpaceClient is not configured as a Spring bean")
+            .hasMessageContaining("@Bean");
     }
     
     @Test
-    @DisplayName("Should throw exception when API key is missing")
-    void shouldThrowExceptionWhenApiKeyIsMissing() {
-        SpringPricingConfigurator configurator = 
-            new CustomUrlConfigurator("http://localhost:3000", null);
+    @DisplayName("Should return injected SpaceClient")
+    void shouldReturnInjectedSpaceClient() throws Exception {
+        // Use reflection to inject the mock SpaceClient
+        Field spaceClientField = SpringPricingConfigurator.class.getDeclaredField("spaceClient");
+        spaceClientField.setAccessible(true);
+        spaceClientField.set(configurator, mockSpaceClient);
         
-        assertThatThrownBy(configurator::getSpaceClient)
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("SPACE API key is not configured");
-    }
-    
-    @Test
-    @DisplayName("Should initialize SpaceClient successfully")
-    void shouldInitializeSpaceClientSuccessfully() {
-        SpringPricingConfigurator configurator = 
-            new CustomUrlConfigurator("http://localhost:3000", "test-key");
+        SpaceClient result = configurator.getSpaceClient();
         
-        var spaceClient = configurator.getSpaceClient();
-        
-        assertThat(spaceClient).isNotNull();
+        assertThat(result).isSameAs(mockSpaceClient);
     }
     
     @Test
     @DisplayName("Should return same SpaceClient instance on multiple calls")
-    void shouldReturnSameSpaceClientInstance() {
-        SpringPricingConfigurator configurator = 
-            new CustomUrlConfigurator("http://localhost:3000", "test-key");
+    void shouldReturnSameSpaceClientInstance() throws Exception {
+        // Use reflection to inject the mock SpaceClient
+        Field spaceClientField = SpringPricingConfigurator.class.getDeclaredField("spaceClient");
+        spaceClientField.setAccessible(true);
+        spaceClientField.set(configurator, mockSpaceClient);
         
-        var client1 = configurator.getSpaceClient();
-        var client2 = configurator.getSpaceClient();
+        SpaceClient client1 = configurator.getSpaceClient();
+        SpaceClient client2 = configurator.getSpaceClient();
         
         assertThat(client1).isSameAs(client2);
-    }
-    
-    @Test
-    @DisplayName("Should close SpaceClient")
-    void shouldCloseSpaceClient() {
-        SpringPricingConfigurator configurator = 
-            new CustomUrlConfigurator("http://localhost:3000", "test-key");
-        
-        var spaceClient = configurator.getSpaceClient();
-        assertThat(spaceClient).isNotNull();
-        
-        // Close should not throw
-        assertThatCode(configurator::close).doesNotThrowAnyException();
     }
 }
