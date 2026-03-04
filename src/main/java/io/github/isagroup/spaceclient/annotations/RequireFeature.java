@@ -18,12 +18,12 @@ import java.lang.annotation.*;
  * - &#64;EnableAspectJAutoProxy in your Spring configuration
  * 
  * Example:
- * &#64;RequireFeature(featureId = "premium-service-export")
+ * &#64;RequireFeature(featureId = "myservice-premiumExport")
  * public void exportData() {
  *     // This will only execute if the feature is available for the current user
  * }
  * 
- * &#64;RequireFeature(featureId = "api-service-concurrent", server = false)
+ * &#64;RequireFeature(featureId = "myservice-concurrentApiCalls", server = false)
  * public void handleConcurrent() {
  *     // This uses client-side evaluation
  * }
@@ -45,7 +45,7 @@ public @interface RequireFeature {
     
     /**
      * Optional consumption values as key=value pairs.
-     * Format: ["requests=10", "storage=1024"]
+     * Format: {"requests=10", "storage=1024"}
      */
     String[] consumption() default {};
     
