@@ -108,4 +108,16 @@ public class Contract {
     public String getUserId() {
         return userContact != null ? userContact.getUserId() : null;
     }
+
+    public String toString() {
+        return "Contract{" +
+                "userContact=" + userContact +
+                ", billingPeriod=" + billingPeriod +
+                ", usageLevels=" + usageLevels +
+                ", contractedServices=" + contractedServices +
+                ", subscriptionPlans=" + subscriptionPlans +
+                ", subscriptionAddOns=" + subscriptionAddOns +
+                ", history=" + history +
+                '}';
+    }
 }

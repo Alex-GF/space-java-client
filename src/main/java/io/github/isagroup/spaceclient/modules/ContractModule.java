@@ -10,6 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Module for managing user contracts with the Space platform
@@ -166,6 +168,45 @@ public class ContractModule {
         }
       } catch (IOException e) {
           logger.error("Failed to update contract subscription for userId: {}", userId, e);
+          return null;
+      }
+    }
+
+    public Contract updateContractUsageLevels(String userId, String serviceName, Map<String, Number> usageLevelsNovations) {
+      try{
+        Map<String, Object> payload = new HashMap<>();
+        payload.put(serviceName, usageLevelsNovations);
+        
+        String json = objectMapper.writeValueAsString(payload);
+        RequestBody body = RequestBody.create(json, JSON);
+
+        Request request = new Request.Builder()
+                .url(spaceClient.getHttpUrl() + "/contracts/" + userId + "/usageLevels")
+                .header("x-api-key", spaceClient.getApiKey())
+                .put(body)
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String errorBody = response.body() != null ? response.body().string() : "Unknown error";
+                logger.error("Error updating contract usage levels: {}", errorBody);
+                throw new IOException("Unexpected response code: " + response.code() + " - " + errorBody);
+            }
+
+            String responseBody = response.body().string();
+            Contract contract = objectMapper.readValue(responseBody, Contract.class);
+
+            CacheModule cache = spaceClient.cache;
+            // Invalidate and update cache for this user if caching is enabled
+            if (cache.isEnabled()) {
+                cache.invalidateUser(userId);
+                cache.set(cache.getContractKey(userId), contract);
+            }
+
+            return contract;
+        }
+      } catch (IOException e) {
+          logger.error("Failed to update contract usage levels for userId: {}", userId, e);
           return null;
       }
     }

@@ -38,4 +38,8 @@ public class UsageLevel {
     public void setConsumed(double consumed) {
         this.consumed = consumed;
     }
+
+    public String toString() {
+        return "UsageLevel{resetTimeStamp=" + resetTimeStamp + ", consumed=" + consumed + "}";
+    }
 }
