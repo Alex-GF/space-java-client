@@ -21,8 +21,16 @@ jobs:
           server-password: CENTRAL_PORTAL_PASSWORD
           gpg-private-key: ${{ secrets.OSSRH_GPG_SECRET_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
-      - name: Test keys
-        run: gpg --list-secret-keys
+      - name: Configure GPG
+        run: |
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          - name: Import GPG key
+      - name: Import GPG keys
+        run: |
+          echo "${{ secrets.OSSRH_GPG_SECRET_KEY }}" | gpg --batch --import
+          gpg --list-secret-keys --keyid-format LONG
       
       - name: Publish to Central Repository
         env:
