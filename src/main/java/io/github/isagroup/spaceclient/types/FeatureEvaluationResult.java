@@ -31,7 +31,7 @@ public class FeatureEvaluationResult {
     }
 
     // Getters and Setters
-    public boolean isEval() {
+    public boolean getEval() {
         return eval;
     }
 
@@ -61,6 +61,23 @@ public class FeatureEvaluationResult {
 
     public void setError(EvaluationError error) {
         this.error = error;
+    }
+
+    public String toString() {
+      if (error != null) {
+          return "FeatureEvaluationResult{" +
+                  "eval: " + eval +
+                  ", used: " + used.toString() +
+                  ", limit: " + limit.toString() +
+                  ", error: " + error.toString() +
+                  "}";
+      }else {
+          return "FeatureEvaluationResult{" +
+                  "eval: " + eval +
+                  ", used: " + used.toString() +
+                  ", limit: " + limit.toString() +
+                  "}";
+      }
     }
 
     /**
@@ -95,6 +112,13 @@ public class FeatureEvaluationResult {
 
         public void setMessage(String message) {
             this.message = message;
+        }
+
+        public String toString() {
+            return "EvaluationError{" +
+                   "code: '" + code + '\'' +
+                   ", message: '" + message + '\'' +
+                   '}';
         }
     }
 }

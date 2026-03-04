@@ -121,7 +121,7 @@ class RequireFeatureIntegrationTest {
         
         when(pricingConfigurator.resolveUserId(joinPoint)).thenReturn("alice");
         when(pricingConfigurator.getSpaceClient()).thenReturn(spaceClient);
-        when(featureEvaluationResult.isEval()).thenReturn(true);
+        when(featureEvaluationResult.getEval()).thenReturn(true);
         when(featureModule.evaluate(
             eq("alice"), eq("premium-export"), any(Map.class), eq(false), eq(true)
         )).thenReturn(featureEvaluationResult);
@@ -148,7 +148,7 @@ class RequireFeatureIntegrationTest {
         
         when(pricingConfigurator.resolveUserId(joinPoint)).thenReturn("bob");
         when(pricingConfigurator.getSpaceClient()).thenReturn(spaceClient);
-        when(featureEvaluationResult.isEval()).thenReturn(false);
+        when(featureEvaluationResult.getEval()).thenReturn(false);
         when(featureModule.evaluate(
             eq("bob"), eq("premium-export"), any(Map.class), eq(false), eq(true)
         )).thenReturn(featureEvaluationResult);
@@ -200,7 +200,7 @@ class RequireFeatureIntegrationTest {
         
         when(pricingConfigurator.resolveUserId(joinPoint)).thenReturn("charlie");
         when(pricingConfigurator.getSpaceClient()).thenReturn(spaceClient);
-        when(featureEvaluationResult.isEval()).thenReturn(true);
+        when(featureEvaluationResult.getEval()).thenReturn(true);
         when(featureModule.evaluate(
             anyString(), anyString(), any(Map.class), eq(true), eq(true)
         )).thenReturn(featureEvaluationResult);
@@ -228,7 +228,7 @@ class RequireFeatureIntegrationTest {
         
         when(pricingConfigurator.resolveUserId(joinPoint)).thenReturn("dave");
         when(pricingConfigurator.getSpaceClient()).thenReturn(spaceClient);
-        when(featureEvaluationResult.isEval()).thenReturn(true);
+        when(featureEvaluationResult.getEval()).thenReturn(true);
         when(featureModule.evaluate(
             eq("dave"), eq("basic-feature"), any(Map.class), eq(false), eq(false)
         )).thenReturn(featureEvaluationResult);
@@ -274,7 +274,7 @@ class RequireFeatureIntegrationTest {
             
             when(pricingConfigurator.resolveUserId(joinPoint)).thenReturn("user" + i);
             when(pricingConfigurator.getSpaceClient()).thenReturn(spaceClient);
-            when(featureEvaluationResult.isEval()).thenReturn(true);
+            when(featureEvaluationResult.getEval()).thenReturn(true);
             when(featureModule.evaluate(
                 "user" + i, "feature-" + i, new HashMap<>(), false, true
             )).thenReturn(featureEvaluationResult);
@@ -294,7 +294,7 @@ class RequireFeatureIntegrationTest {
         
         when(pricingConfigurator.resolveUserId(joinPoint)).thenReturn("user");
         when(pricingConfigurator.getSpaceClient()).thenReturn(spaceClient);
-        when(featureEvaluationResult.isEval()).thenReturn(true);
+        when(featureEvaluationResult.getEval()).thenReturn(true);
         when(featureModule.evaluate(
             eq("user"), eq("feature-id"), any(Map.class), eq(false), eq(true)
         )).thenReturn(featureEvaluationResult);
@@ -317,7 +317,7 @@ class RequireFeatureIntegrationTest {
         
         when(pricingConfigurator.resolveUserId(joinPoint)).thenReturn("user");
         when(pricingConfigurator.getSpaceClient()).thenReturn(spaceClient);
-        when(featureEvaluationResult.isEval()).thenReturn(true);
+        when(featureEvaluationResult.getEval()).thenReturn(true);
         when(featureModule.evaluate(
             eq("user"), eq("service-v2-feature_with-special.chars"), any(Map.class), eq(false), eq(true)
         )).thenReturn(featureEvaluationResult);

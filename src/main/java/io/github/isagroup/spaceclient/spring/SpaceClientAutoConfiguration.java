@@ -42,8 +42,8 @@ import org.slf4j.LoggerFactory;
  * </pre>
  */
 @Configuration
-public class SpaceClientConfiguration {
-    private static final Logger logger = LoggerFactory.getLogger(SpaceClientConfiguration.class);
+public class SpaceClientAutoConfiguration {
+    private static final Logger logger = LoggerFactory.getLogger(SpaceClientAutoConfiguration.class);
 
     @Value("${space.client.url:}")
     private String spaceUrl;

@@ -76,7 +76,7 @@ public class RequireFeatureAspect {
             );
             
             // Check if feature is available
-            if (!result.isEval()) {
+            if (!result.getEval()) {
                 logger.warn("Feature '{}' is not available for user '{}'. " +
                            "Method '{}' will not be executed",
                            featureId, userId, joinPoint.getSignature().getName());

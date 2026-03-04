@@ -56,7 +56,7 @@ public class BasicExample {
                 "serviceA-feature1"
             );
 
-            if (result.isEval()) {
+            if (result.getEval()) {
                 System.out.println("Feature is enabled!");
                 System.out.println("Used: " + result.getUsed());
                 System.out.println("Limit: " + result.getLimit());

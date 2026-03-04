@@ -19,6 +19,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.lang.reflect.Field;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -77,7 +81,7 @@ class RequireFeatureAspectTest {
         
         when(pricingConfigurator.resolveUserId(joinPoint)).thenReturn("user123");
         when(pricingConfigurator.getSpaceClient()).thenReturn(spaceClient);
-        when(featureEvaluationResult.isEval()).thenReturn(true);
+        when(featureEvaluationResult.getEval()).thenReturn(true);
         when(featureModule.evaluate("user123", "premium-export", 
                     new java.util.HashMap<>(), false, true))
             .thenReturn(featureEvaluationResult);
@@ -101,7 +105,7 @@ class RequireFeatureAspectTest {
         
         when(pricingConfigurator.resolveUserId(joinPoint)).thenReturn("user123");
         when(pricingConfigurator.getSpaceClient()).thenReturn(spaceClient);
-        when(featureEvaluationResult.isEval()).thenReturn(false);
+        when(featureEvaluationResult.getEval()).thenReturn(false);
         
         try {
             when(featureModule.evaluate("user123", "premium-export", 
@@ -144,7 +148,7 @@ class RequireFeatureAspectTest {
         
         when(pricingConfigurator.resolveUserId(joinPoint)).thenReturn("user123");
         when(pricingConfigurator.getSpaceClient()).thenReturn(spaceClient);
-        when(featureEvaluationResult.isEval()).thenReturn(true);
+        when(featureEvaluationResult.getEval()).thenReturn(true);
         when(featureModule.evaluate(anyString(), anyString(), 
                     any(), anyBoolean(), eq(true)))
             .thenReturn(featureEvaluationResult);
@@ -169,7 +173,7 @@ class RequireFeatureAspectTest {
         
         when(pricingConfigurator.resolveUserId(joinPoint)).thenReturn("user123");
         when(pricingConfigurator.getSpaceClient()).thenReturn(spaceClient);
-        when(featureEvaluationResult.isEval()).thenReturn(true);
+        when(featureEvaluationResult.getEval()).thenReturn(true);
         when(featureModule.evaluate(anyString(), anyString(), 
                     any(), anyBoolean(), eq(false)))
             .thenReturn(featureEvaluationResult);
@@ -193,7 +197,7 @@ class RequireFeatureAspectTest {
         
         when(pricingConfigurator.resolveUserId(joinPoint)).thenReturn("user123");
         when(pricingConfigurator.getSpaceClient()).thenReturn(spaceClient);
-        when(featureEvaluationResult.isEval()).thenReturn(true);
+        when(featureEvaluationResult.getEval()).thenReturn(true);
         when(featureModule.evaluate(anyString(), anyString(), 
                     any(java.util.Map.class), anyBoolean(), anyBoolean()))
             .thenReturn(featureEvaluationResult);
@@ -219,7 +223,7 @@ class RequireFeatureAspectTest {
         
         when(pricingConfigurator.resolveUserId(joinPoint)).thenReturn("user123");
         when(pricingConfigurator.getSpaceClient()).thenReturn(spaceClient);
-        when(featureEvaluationResult.isEval()).thenReturn(true);
+        when(featureEvaluationResult.getEval()).thenReturn(true);
         when(featureModule.evaluate(anyString(), anyString(), 
                     any(), eq(true), anyBoolean()))
             .thenReturn(featureEvaluationResult);
@@ -262,7 +266,7 @@ class RequireFeatureAspectTest {
         
         when(pricingConfigurator.resolveUserId(joinPoint)).thenReturn("user123");
         when(pricingConfigurator.getSpaceClient()).thenReturn(spaceClient);
-        when(featureEvaluationResult.isEval()).thenReturn(true);
+        when(featureEvaluationResult.getEval()).thenReturn(true);
         when(featureModule.evaluate(anyString(), anyString(), 
                     any(java.util.Map.class), anyBoolean(), anyBoolean()))
             .thenReturn(featureEvaluationResult);
