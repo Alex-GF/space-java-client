@@ -32,6 +32,8 @@ jobs:
           echo "${{ secrets.OSSRH_GPG_SECRET_KEY }}" | gpg --batch --import
           gpg --list-secret-keys --keyid-format LONG
       
+      - name: Run test
+        run: mvn test
       - name: Publish to Central Repository
         env:
           CENTRAL_PORTAL_USERNAME: ${{ secrets.CENTRAL_PORTAL_USERNAME }}
