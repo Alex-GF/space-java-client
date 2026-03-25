@@ -1,5 +1,6 @@
 package io.github.isagroup.spaceclient.mock;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import okhttp3.mockwebserver.Dispatcher;
@@ -30,6 +31,7 @@ public class SpaceMockServer {
         this.mockWebServer = new MockWebServer();
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
+        this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         this.contracts = new ConcurrentHashMap<>();
         this.featureEvaluations = new ConcurrentHashMap<>();
         this.pricingTokens = new ConcurrentHashMap<>();
@@ -71,6 +73,10 @@ public class SpaceMockServer {
                     }
                     
                     // Contracts endpoints
+                    if (path.matches("/contracts\\?.*groupId=.*") && "PUT".equals(method)) {
+                        return handleUpdateContractsByGroupId(request, path);
+                    }
+
                     if (path.matches("/contracts/[^/]+/usageLevels.*") && "PUT".equals(method)) {
                         return handleUpdateUsageLevels(request, path);
                     }
@@ -271,6 +277,76 @@ public class SpaceMockServer {
             .setHeader("Content-Type", "application/json")
             .setBody(responseBody);
     }
+
+    /**
+     * Handles batch contract update requests by groupId
+     * PUT /api/v1/contracts?groupId={groupId}
+     */
+    private MockResponse handleUpdateContractsByGroupId(RecordedRequest request, String path) throws IOException {
+        String queryString = path.contains("?") ? path.substring(path.indexOf("?") + 1) : "";
+        String groupId = null;
+
+        for (String param : queryString.split("&")) {
+            String[] keyValue = param.split("=", 2);
+            if (keyValue.length == 2 && "groupId".equals(keyValue[0])) {
+                groupId = keyValue[1];
+                break;
+            }
+        }
+
+        if (groupId == null || groupId.isEmpty()) {
+            return new MockResponse()
+                .setResponseCode(400)
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"error\":\"groupId query parameter is required\"}");
+        }
+
+        // Deterministic error path for negative tests.
+        if ("error-group".equals(groupId)) {
+            return new MockResponse()
+                .setResponseCode(500)
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"error\":\"Simulated server error\"}");
+        }
+
+        String body = request.getBody().readUtf8();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> updates = objectMapper.readValue(body, Map.class);
+
+        java.util.List<Map<String, Object>> updatedContracts = new java.util.ArrayList<>();
+
+        for (Map.Entry<String, Object> entry : contracts.entrySet()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> existing = (Map<String, Object>) entry.getValue();
+            Object contractGroupId = existing.get("groupId");
+
+            if (!groupId.equals(contractGroupId)) {
+                continue;
+            }
+
+            Map<String, Object> updated = new HashMap<>(existing);
+
+            if (updates.containsKey("subscriptionPlans")) {
+                updated.put("subscriptionPlans", updates.get("subscriptionPlans"));
+            }
+            if (updates.containsKey("subscriptionAddOns")) {
+                updated.put("subscriptionAddOns", updates.get("subscriptionAddOns"));
+            }
+            if (updates.containsKey("contractedServices")) {
+                updated.put("contractedServices", updates.get("contractedServices"));
+            }
+
+            contracts.put(entry.getKey(), updated);
+            updatedContracts.add(updated);
+        }
+
+        String responseBody = objectMapper.writeValueAsString(updatedContracts);
+
+        return new MockResponse()
+            .setResponseCode(200)
+            .setHeader("Content-Type", "application/json")
+            .setBody(responseBody);
+    }
     
     /**
      * Handles update usage levels requests
@@ -343,6 +419,14 @@ public class SpaceMockServer {
     private MockResponse handleDeleteContract(RecordedRequest request, String path) {
         String[] pathParts = path.split("/");
         String userId = pathParts[2].split("\\?")[0];
+
+        // Deterministic error path for negative tests.
+        if ("error-user".equals(userId)) {
+            return new MockResponse()
+                .setResponseCode(500)
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"error\":\"Simulated server error\"}");
+        }
         
         contracts.remove(userId);
         

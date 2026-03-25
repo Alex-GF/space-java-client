@@ -11,6 +11,9 @@ public class Contract {
     
     @JsonProperty("id")
     private String id;
+    
+    @JsonProperty("_id")
+    private String _id;
 
     @JsonProperty("userContact")
     private UserContact userContact;
@@ -20,6 +23,9 @@ public class Contract {
     
     @JsonProperty("organizationId")
     private String organizationId;
+
+    @JsonProperty("groupId")
+    private String groupId;
     
     @JsonProperty("usageLevels")
     private Map<String, Map<String, UsageLevel>> usageLevels;
@@ -71,6 +77,14 @@ public class Contract {
 
     public void setContractedServices(Map<String, String> contractedServices) {
         this.contractedServices = contractedServices;
+    }
+
+    public String getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(String groupId) {
+        this.groupId = groupId;
     }
 
     public Map<String, String> getSubscriptionPlans() {
