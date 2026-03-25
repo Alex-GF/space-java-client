@@ -6,7 +6,9 @@ import io.github.isagroup.spaceclient.types.*;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.*;
@@ -176,6 +178,96 @@ class SpaceClientIntegrationTest {
         // Assert
         assertThat(updatedContract).isNotNull();
         assertThat(updatedContract.getUsageLevels()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("Should update subscription for all contracts in a group via SPACE API")
+    void shouldUpdateContractSubscriptionByGroupIdViaApi() {
+        // Arrange
+        String targetGroupId = "group-alpha";
+        String otherGroupId = "group-beta";
+
+        mockServer.setContract("g1-user-1", createContract("g1-user-1", targetGroupId, "BASIC", 1));
+        mockServer.setContract("g1-user-2", createContract("g1-user-2", targetGroupId, "BASIC", 1));
+        mockServer.setContract("g2-user-1", createContract("g2-user-1", otherGroupId, "STANDARD", 2));
+
+        Subscription newSubscription = new Subscription();
+
+        Map<String, String> updatedPlans = new HashMap<>();
+        updatedPlans.put("zoom", "ENTERPRISE");
+        newSubscription.setSubscriptionPlans(updatedPlans);
+
+        Map<String, Map<String, Integer>> updatedAddOns = new HashMap<>();
+        Map<String, Integer> zoomAddons = new HashMap<>();
+        zoomAddons.put("extraSeats", 10);
+        updatedAddOns.put("zoom", zoomAddons);
+        newSubscription.setSubscriptionAddOns(updatedAddOns);
+
+        // Act
+        List<Contract> updatedContracts = client.contracts.updateContractSubscriptionByGroupId(targetGroupId, newSubscription);
+
+        // Assert
+        assertThat(updatedContracts).isNotNull();
+        assertThat(updatedContracts).hasSize(2);
+        assertThat(updatedContracts)
+            .extracting(Contract::getUserId)
+            .containsExactlyInAnyOrder("g1-user-1", "g1-user-2");
+        assertThat(updatedContracts)
+            .allMatch(contract -> "ENTERPRISE".equals(contract.getSubscriptionPlans().get("zoom")));
+        assertThat(updatedContracts)
+            .allMatch(contract -> Integer.valueOf(10).equals(contract.getSubscriptionAddOns().get("zoom").get("extraSeats")));
+
+        Contract untouchedContract = client.contracts.getContract("g2-user-1");
+        assertThat(untouchedContract.getSubscriptionPlans()).containsEntry("zoom", "STANDARD");
+    }
+
+    @Test
+    @DisplayName("Should return null when group subscription update fails")
+    void shouldReturnNullWhenUpdateContractSubscriptionByGroupIdFails() {
+        // Arrange
+        Subscription newSubscription = new Subscription();
+        newSubscription.setSubscriptionPlans(Map.of("zoom", "ENTERPRISE"));
+
+        // Act
+        List<Contract> updatedContracts = client.contracts.updateContractSubscriptionByGroupId("error-group", newSubscription);
+
+        // Assert
+        assertThat(updatedContracts).isNull();
+    }
+
+    @Test
+    @DisplayName("Should remove contract successfully")
+    void shouldRemoveContractSuccessfully() {
+        // Arrange
+        String userId = "remove-user";
+        mockServer.setContract(userId, createContract(userId, "group-remove", "PRO", 3));
+
+        Contract beforeDeletion = client.contracts.getContract(userId);
+        assertThat(beforeDeletion.getUserContact().getUsername()).isEqualTo("custom_" + userId);
+
+        // Act
+        client.contracts.removeContract(userId);
+
+        // Assert
+        Contract afterDeletion = client.contracts.getContract(userId);
+        assertThat(afterDeletion).isNotNull();
+        assertThat(afterDeletion.getUserContact().getUsername()).isEqualTo("user_" + userId);
+    }
+
+    @Test
+    @DisplayName("Should not throw and keep contract when remove fails")
+    void shouldNotThrowAndKeepContractWhenRemoveFails() {
+        // Arrange
+        String userId = "error-user";
+        mockServer.setContract(userId, createContract(userId, "group-error", "PRO", 3));
+
+        // Act + Assert (no exception)
+        assertThatCode(() -> client.contracts.removeContract(userId)).doesNotThrowAnyException();
+
+        // The mocked endpoint returns 500 for this user, so contract should remain untouched.
+        Contract persistedContract = client.contracts.getContract(userId);
+        assertThat(persistedContract).isNotNull();
+        assertThat(persistedContract.getUserContact().getUsername()).isEqualTo("custom_" + userId);
     }
     
     @Test
@@ -373,5 +465,26 @@ class SpaceClientIntegrationTest {
         assertThat(result.getEval()).isFalse();
         assertThat(result.getError()).isNotNull();
         assertThat(result.getError().getCode()).isEqualTo("FEATURE_NOT_FOUND");
+    }
+
+    private Map<String, Object> createContract(String userId, String groupId, String plan, int extraSeats) {
+        Map<String, Object> contract = new HashMap<>();
+        contract.put("id", "contract_" + userId);
+        contract.put("organizationId", "org_default");
+        contract.put("groupId", groupId);
+
+        Map<String, Object> userContact = new HashMap<>();
+        userContact.put("userId", userId);
+        userContact.put("username", "custom_" + userId);
+        userContact.put("email", userId + "@example.com");
+        contract.put("userContact", userContact);
+
+        contract.put("contractedServices", Map.of("zoom", "2025"));
+        contract.put("subscriptionPlans", Map.of("zoom", plan));
+        contract.put("subscriptionAddOns", Map.of("zoom", Map.of("extraSeats", extraSeats)));
+        contract.put("usageLevels", new HashMap<>());
+        contract.put("history", new ArrayList<>());
+
+        return contract;
     }
 }
