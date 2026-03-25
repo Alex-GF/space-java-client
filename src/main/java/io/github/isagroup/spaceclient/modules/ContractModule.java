@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -171,6 +172,54 @@ public class ContractModule {
           return null;
       }
     }
+    
+    /**
+     * Updates the subscription for all contracts with the given groupId in the SPACE platform
+     * This method also invalidates the cached data for the group of users
+     *
+     * @param groupId The ID of the group whose contracts are to be updated
+     * @param newSubscription The new subscription details to be applied
+     * @return The updated contract
+     */
+    public List<Contract> updateContractSubscriptionByGroupId(String groupId, Subscription newSubscription) {
+      try{
+        String json = objectMapper.writeValueAsString(newSubscription);
+        RequestBody body = RequestBody.create(json, JSON);
+
+        Request request = new Request.Builder()
+                .url(spaceClient.getHttpUrl() + "/contracts?groupId=" + groupId)
+                .header("x-api-key", spaceClient.getApiKey())
+                .put(body)
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String errorBody = response.body() != null ? response.body().string() : "Unknown error";
+                logger.error("Error updating contract subscription: {}", errorBody);
+                throw new IOException("Unexpected response code: " + response.code() + " - " + errorBody);
+            }
+
+            String responseBody = response.body().string();
+            List<Contract> contracts = objectMapper.readValue(responseBody, objectMapper.getTypeFactory().constructCollectionType(List.class, Contract.class));
+
+            CacheModule cache = spaceClient.cache;
+            // Invalidate and update cache for this user if caching is enabled
+            if (cache.isEnabled()) {
+              for (Contract contract : contracts) {
+                cache.invalidateUser(contract.getUserId());
+                cache.set(cache.getContractKey(contract.getUserId()), contract);
+              }
+            }
+
+            return contracts;
+        }
+      } catch (IOException e) {
+          logger.error("Failed to update contract subscription for groupId: {}", groupId, e);
+          return null;
+      }
+    }
+
+
 
     public Contract updateContractUsageLevels(String userId, String serviceName, Map<String, Number> usageLevelsNovations) {
       try{
@@ -208,6 +257,32 @@ public class ContractModule {
       } catch (IOException e) {
           logger.error("Failed to update contract usage levels for userId: {}", userId, e);
           return null;
+      }
+    }
+
+    public void removeContract(String userId) {
+      try{
+        Request request = new Request.Builder()
+                .url(spaceClient.getHttpUrl() + "/contracts/" + userId)
+                .header("x-api-key", spaceClient.getApiKey())
+                .delete()
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String errorBody = response.body() != null ? response.body().string() : "Unknown error";
+                logger.error("Error removing contract: {}", errorBody);
+                throw new IOException("Unexpected response code: " + response.code() + " - " + errorBody);
+            }
+
+            CacheModule cache = spaceClient.cache;
+            // Invalidate cache for this user if caching is enabled
+            if (cache.isEnabled()) {
+                cache.invalidateUser(userId);
+            }
+        }
+      } catch (IOException e) {
+          logger.error("Failed to remove contract for userId: {}", userId, e);
       }
     }
 }

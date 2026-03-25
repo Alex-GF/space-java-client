@@ -16,7 +16,10 @@ public class ContractToCreate {
     
     @JsonProperty("contractedServices")
     private Map<String, String> contractedServices;
-    
+
+    @JsonProperty(value = "groupId", required = false)
+    private String groupId;
+
     @JsonProperty("subscriptionPlans")
     private Map<String, String> subscriptionPlans;
     
@@ -27,10 +30,11 @@ public class ContractToCreate {
     }
 
     public ContractToCreate(UserContact userContact, BillingPeriodToCreate billingPeriod, Map<String, String> contractedServices,
-                           Map<String, String> subscriptionPlans, Map<String, Map<String, Integer>> subscriptionAddOns) {
+                           String groupId, Map<String, String> subscriptionPlans, Map<String, Map<String, Integer>> subscriptionAddOns) {
         this.userContact = userContact;
         this.billingPeriod = billingPeriod;
         this.contractedServices = contractedServices;
+        this.groupId = groupId;
         this.subscriptionPlans = subscriptionPlans;
         this.subscriptionAddOns = subscriptionAddOns;
     }
@@ -58,6 +62,14 @@ public class ContractToCreate {
 
     public void setContractedServices(Map<String, String> contractedServices) {
         this.contractedServices = contractedServices;
+    }
+
+    public String getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(String groupId) {
+        this.groupId = groupId;
     }
 
     public Map<String, String> getSubscriptionPlans() {

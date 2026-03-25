@@ -1,5 +1,6 @@
 package io.github.isagroup.spaceclient;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.github.isagroup.spaceclient.modules.CacheModule;
@@ -70,6 +71,7 @@ public class SpaceClient {
         // Initialize ObjectMapper with JavaTimeModule for Date handling
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
+        this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
         // Initialize HTTP client
         this.httpClient = new OkHttpClient.Builder()

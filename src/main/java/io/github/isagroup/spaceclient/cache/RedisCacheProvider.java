@@ -1,6 +1,7 @@
 package io.github.isagroup.spaceclient.cache;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.isagroup.spaceclient.types.CacheOptions;
 import org.slf4j.Logger;
@@ -31,6 +32,7 @@ public class RedisCacheProvider implements CacheProvider {
         this.config = config;
         this.defaultTtl = defaultTtl;
         this.objectMapper = new ObjectMapper();
+        this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         this.connected = false;
         
         connect();

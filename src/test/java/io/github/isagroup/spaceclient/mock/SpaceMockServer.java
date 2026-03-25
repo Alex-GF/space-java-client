@@ -1,5 +1,6 @@
 package io.github.isagroup.spaceclient.mock;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import okhttp3.mockwebserver.Dispatcher;
@@ -30,6 +31,7 @@ public class SpaceMockServer {
         this.mockWebServer = new MockWebServer();
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
+        this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         this.contracts = new ConcurrentHashMap<>();
         this.featureEvaluations = new ConcurrentHashMap<>();
         this.pricingTokens = new ConcurrentHashMap<>();

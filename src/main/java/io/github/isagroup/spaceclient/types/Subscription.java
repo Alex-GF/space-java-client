@@ -1,6 +1,8 @@
 package io.github.isagroup.spaceclient.types;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -18,6 +20,9 @@ public class Subscription {
     private Map<String, Map<String, Integer>> subscriptionAddOns;
 
     public Subscription() {
+      this.contractedServices = new HashMap<>();
+      this.subscriptionPlans = new HashMap<>();
+      this.subscriptionAddOns = new HashMap<>();
     }
 
     public Subscription(Map<String, String> contractedServices, Map<String, String> subscriptionPlans,
