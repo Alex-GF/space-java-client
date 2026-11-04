@@ -450,6 +450,37 @@ class IdempotencyTest {
 
     // -- revert by consumption id -------------------------------------------------------------
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {200, 204, 404})
+    void detailedRefund(int status) {
+        String detail = "{\"consumptionId\":\"receipt\",\"reverted\":{\"acme-maxPets\":1},\"skipped\":[\"acme-missing\"]}";
+        on("POST", FEATURE, status == 204 ? new MockResponse().setResponseCode(204) : json(status, detail));
+        on("GET", "/api/v1/healthcheck", json(200, "{}"));
+        SpaceClient client = client(0);
+        io.github.isagroup.spaceclient.types.ConsumptionRevertResult result =
+            client.features.revertConsumptionDetails("u1", "acme-pets", "receipt");
+        assertThat(result.getConsumptionId()).isEqualTo("receipt");
+        assertThat(result.isFound()).isEqualTo(status != 404);
+        if (status == 200) {
+            assertThat(result.getReverted().get("acme-maxPets").intValue()).isEqualTo(1);
+            assertThat(result.getSkipped()).containsExactly("acme-missing");
+        } else {
+            assertThat(result.getReverted()).isNull();
+            assertThat(result.getSkipped()).isEmpty();
+        }
+        assertThat(client.features.revertConsumption("u1", "acme-pets", "receipt")).isEqualTo(status != 404);
+    }
+
+    @Test
+    void detailedRefundDoesNotRetryChangedState() {
+        on("POST", FEATURE, json(409, "{\"code\":\"IDEMPOTENCY_STATE_CHANGED\"}"));
+        on("GET", "/api/v1/healthcheck", json(200, "{}"));
+        SpaceClient client = client(2);
+        assertThatThrownBy(() -> client.features.revertConsumptionDetails("u1", "acme-pets", "receipt"))
+            .isInstanceOf(io.github.isagroup.spaceclient.exceptions.SpaceApiException.class);
+        assertThat(requestsTo("POST", FEATURE)).hasSize(1);
+    }
+
     @Test
     @DisplayName("revertConsumption reverts by id with a key; true on 204")
     void revertConsumption() throws InterruptedException {

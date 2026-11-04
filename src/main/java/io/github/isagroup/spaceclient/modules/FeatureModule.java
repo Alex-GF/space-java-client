@@ -7,6 +7,7 @@ import io.github.isagroup.spaceclient.exceptions.SpaceException;
 import io.github.isagroup.spaceclient.exceptions.SpaceFeatureUnsupportedException;
 import io.github.isagroup.spaceclient.types.FeatureEvaluationResult;
 import io.github.isagroup.spaceclient.types.WriteOptions;
+import io.github.isagroup.spaceclient.types.ConsumptionRevertResult;
 import io.github.isagroup.spaceclient.tokens.PricingTokenVerifier;
 import io.github.isagroup.spaceclient.types.PricingTokenPayload;
 import okhttp3.*;
@@ -243,6 +244,16 @@ public class FeatureModule {
    * revert.
    */
   public boolean revertConsumption(String userId, String featureId, String consumptionId, WriteOptions options) {
+    return revertConsumptionDetails(userId, featureId, consumptionId, options).isFound();
+  }
+
+  /** Revert a consumption and retain per-limit amounts and omitted limits. */
+  public ConsumptionRevertResult revertConsumptionDetails(String userId, String featureId, String consumptionId) {
+    return revertConsumptionDetails(userId, featureId, consumptionId, null);
+  }
+
+  /** Detailed refund with the caller's idempotency key, or null for a generated key. */
+  public ConsumptionRevertResult revertConsumptionDetails(String userId, String featureId, String consumptionId, WriteOptions options) {
     if (consumptionId == null || consumptionId.isEmpty() || consumptionId.length() > WriteOptions.MAX_KEY_LENGTH) {
       throw new IllegalArgumentException("consumptionId must have 1 to " + WriteOptions.MAX_KEY_LENGTH + " characters");
     }
@@ -257,10 +268,22 @@ public class FeatureModule {
     ApiCalls.Answer answer = api.executeKeyed(api.request(url).post(RequestBody.create("{}", JSON)),
         options != null ? options.getIdempotencyKey() : null, Collections.singleton(404));
     if (answer.code == 404) {
-      return false;
+      return new ConsumptionRevertResult(consumptionId, false, null, Collections.emptyList());
     }
     forgetUsage(userId, featureId);
-    return true;
+    if (answer.code == 200) {
+      try {
+        com.fasterxml.jackson.databind.JsonNode body = objectMapper.readTree(answer.body);
+        Map<String, Number> reverted = objectMapper.convertValue(body.get("reverted"),
+            new com.fasterxml.jackson.core.type.TypeReference<Map<String, Number>>() {});
+        java.util.List<String> skipped = objectMapper.convertValue(body.get("skipped"),
+            new com.fasterxml.jackson.core.type.TypeReference<java.util.List<String>>() {});
+        return new ConsumptionRevertResult(consumptionId, true, reverted, skipped);
+      } catch (IOException e) {
+        throw new SpaceException("Invalid consumption revert response", e);
+      }
+    }
+    return new ConsumptionRevertResult(consumptionId, true, null, Collections.emptyList());
   }
 
   /**

@@ -1,5 +1,30 @@
 # Space Java Client
 
+## Release 0.5.0
+
+This minor release preserves existing public methods and adds subscription reads, contract events,
+multiorganization token claims, event deduplication and JWKS verification. Backend SDKs also
+provide pricing YAML reads, novation previews, optimistic concurrency and opt-in idempotent retries.
+Use a SPACE server advertising the required `X-Space-Capabilities`; merging server changes alone
+does not deploy them. Read `userId` through the provided helper: `sub` is opaque.
+
+### Detailed consumption reversions
+
+`features.revertConsumptionDetails(userId, featureId, consumptionId[, writeOptions])` preserves the server's refund details. The existing boolean
+`revertConsumption` / `revert_consumption` remains available and unchanged.
+
+| SPACE response | Detailed result |
+| --- | --- |
+| 204 | Found; nothing omitted. No per-limit amounts were returned (`reverted` is absent/null). |
+| 200 | Found; `reverted` contains amounts and `skipped` identifies limits which no longer exist. |
+| 404 | Not found; nothing was changed by this request. |
+| 409 | An API error is propagated, including a disabled service or `IDEMPOTENCY_STATE_CHANGED`; no automatic retry. |
+
+The result is `ConsumptionRevertResult`: consumption ID, `found`, optional `reverted` amounts and
+`skipped` limit IDs (Python uses `consumption_id`; Java uses getters and `isFound()`). To retry one
+operation across process restarts, store and reuse its idempotency key. A new key means a new operation.
+A successful signature still requires the application to match the token's user to its authenticated user.
+
 Java client library for [Space](https://github.com/isa-group/space) - A pricing-driven self-adaptation platform for SaaS applications.
 
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.isa-group/space-java-client.svg)](https://search.maven.org/artifact/io.github.isa-group/space-java-client)
