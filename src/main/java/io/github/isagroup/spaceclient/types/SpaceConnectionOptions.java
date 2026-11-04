@@ -1,6 +1,7 @@
 package io.github.isagroup.spaceclient.types;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.Duration;
 import java.util.Map;
 
 /**
@@ -19,6 +20,27 @@ public class SpaceConnectionOptions {
     
     @JsonProperty("cache")
     private CacheOptions cache;
+
+    @JsonProperty("organizationId")
+    private String organizationId;
+
+    @JsonProperty("eventDeduplication")
+    private Boolean eventDeduplication;
+
+    @JsonProperty("eventDeduplicationMaxEntries")
+    private Integer eventDeduplicationMaxEntries;
+
+    @JsonProperty("eventDeduplicationWindowMs")
+    private Long eventDeduplicationWindowMs;
+
+    @JsonProperty("retries")
+    private Integer retries;
+
+    @JsonProperty("retryBaseDelayMs")
+    private Long retryBaseDelayMs;
+
+    @JsonProperty("retryMaxDelayMs")
+    private Long retryMaxDelayMs;
 
     public SpaceConnectionOptions() {
     }
@@ -73,5 +95,91 @@ public class SpaceConnectionOptions {
 
     public void setCache(CacheOptions cache) {
         this.cache = cache;
+    }
+
+    /**
+     * The organisation of a member user key ({@code usr_...}). Sent with the handshake of the
+     * authenticated {@code /contracts} events namespace ({@code {apiKey, organizationId}}), which
+     * SPACE requires for user keys. Not needed for organisation keys.
+     */
+    public String getOrganizationId() {
+        return organizationId;
+    }
+
+    public void setOrganizationId(String organizationId) {
+        this.organizationId = organizationId;
+    }
+
+    /**
+     * Whether repeated SPACE events are dropped by {@code eventId} (a consumer can receive one
+     * event more than once). {@code true} by default; events without {@code eventId} (older
+     * SPACE) are always delivered.
+     */
+    public boolean isEventDeduplication() {
+        return eventDeduplication == null || eventDeduplication;
+    }
+
+    public void setEventDeduplication(Boolean eventDeduplication) {
+        this.eventDeduplication = eventDeduplication;
+    }
+
+    /** At most this many event ids are remembered, oldest dropped first (default 10,000). */
+    public int getEventDeduplicationMaxEntries() {
+        return eventDeduplicationMaxEntries != null ? eventDeduplicationMaxEntries : 10_000;
+    }
+
+    public void setEventDeduplicationMaxEntries(Integer eventDeduplicationMaxEntries) {
+        this.eventDeduplicationMaxEntries = eventDeduplicationMaxEntries;
+    }
+
+    /** How long an event id is remembered after it was first seen (default 10 minutes). */
+    public Duration getEventDeduplicationWindow() {
+        return eventDeduplicationWindowMs != null
+                ? Duration.ofMillis(eventDeduplicationWindowMs)
+                : Duration.ofMinutes(10);
+    }
+
+    public void setEventDeduplicationWindow(Duration window) {
+        this.eventDeduplicationWindowMs = window != null ? window.toMillis() : null;
+    }
+
+    /**
+     * How many times a write carrying an {@code Idempotency-Key} (consumptions, reverts, contract
+     * creation, novations, usage level changes) is retried, with the same key, after a network
+     * error, a {@code 5xx} or a {@code 409 IDEMPOTENCY_IN_PROGRESS}. 0 to 10; default 0 (no
+     * retries). Retries only happen while SPACE advertises {@code idempotency-key}: an older SPACE
+     * would apply each attempt. Other requests are never retried.
+     */
+    public int getRetries() {
+        return retries != null ? retries : 0;
+    }
+
+    public void setRetries(Integer retries) {
+        this.retries = retries;
+    }
+
+    /**
+     * Base of the exponential backoff between retries (default 250 ms): the n-th retry waits
+     * between half and all of {@code retryBaseDelayMs * 2^(n-1)}, capped at
+     * {@link #getRetryMaxDelayMs()}. A {@code Retry-After} from SPACE is waited exactly instead.
+     */
+    public long getRetryBaseDelayMs() {
+        return retryBaseDelayMs != null ? retryBaseDelayMs : 250L;
+    }
+
+    public void setRetryBaseDelayMs(Long retryBaseDelayMs) {
+        this.retryBaseDelayMs = retryBaseDelayMs;
+    }
+
+    /**
+     * Longest wait before a retry (default 10000 ms). A longer {@code Retry-After} ends the
+     * retries: the client never waits less than SPACE asks.
+     */
+    public long getRetryMaxDelayMs() {
+        return retryMaxDelayMs != null ? retryMaxDelayMs : 10_000L;
+    }
+
+    public void setRetryMaxDelayMs(Long retryMaxDelayMs) {
+        this.retryMaxDelayMs = retryMaxDelayMs;
     }
 }
