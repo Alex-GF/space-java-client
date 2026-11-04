@@ -6,6 +6,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.github.isagroup.spaceclient.modules.CacheModule;
 import io.github.isagroup.spaceclient.modules.ContractModule;
 import io.github.isagroup.spaceclient.modules.FeatureModule;
+import io.github.isagroup.spaceclient.modules.PricingModule;
+import io.github.isagroup.spaceclient.modules.ServiceModule;
 import io.github.isagroup.spaceclient.types.SpaceConnectionOptions;
 import io.socket.client.IO;
 import io.socket.client.Manager;
@@ -50,6 +52,8 @@ public class SpaceClient {
     public final CacheModule cache;
     public final ContractModule contracts;
     public final FeatureModule features;
+    public final PricingModule pricings;
+    public final ServiceModule services;
 
     /**
      * Constructs a new instance of the SpaceClient class
@@ -87,6 +91,8 @@ public class SpaceClient {
         this.cache = new CacheModule(this);
         this.contracts = new ContractModule(this, httpClient, objectMapper);
         this.features = new FeatureModule(this, httpClient, objectMapper);
+        this.pricings = new PricingModule(this, httpClient);
+        this.services = new ServiceModule(this, httpClient, objectMapper);
 
         // Initialize cache if configured
         if (options.getCache() != null && options.getCache().isEnabled()) {
