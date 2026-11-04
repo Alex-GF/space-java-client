@@ -38,6 +38,24 @@ jobs:
           echo "${{ secrets.OSSRH_GPG_SECRET_KEY }}" | gpg --batch --import
           gpg --list-secret-keys --keyid-format LONG
       
+      - name: Set up Maven 3.9.9 for Central plugin compatibility
+        env:
+          MAVEN_VERSION: '3.9.9'
+        run: |
+          set -euo pipefail
+          archive="apache-maven-${MAVEN_VERSION}-bin.tar.gz"
+          install_dir="${RUNNER_TEMP}/sdk-maven"
+          base_url="https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries"
+          mkdir -p "$install_dir"
+          curl --fail --location --silent --show-error "${base_url}/${archive}" --output "${install_dir}/${archive}"
+          curl --fail --location --silent --show-error "${base_url}/${archive}.sha512" --output "${install_dir}/${archive}.sha512"
+          checksum="$(tr -d '[:space:]' < "${install_dir}/${archive}.sha512")"
+          [[ "$checksum" =~ ^[a-fA-F0-9]{128}$ ]] || { echo "Invalid Maven SHA-512" >&2; exit 1; }
+          printf '%s  %s\n' "$checksum" "${install_dir}/${archive}" | sha512sum --check
+          tar -xzf "${install_dir}/${archive}" -C "$install_dir"
+          echo "${install_dir}/apache-maven-${MAVEN_VERSION}/bin" >> "$GITHUB_PATH"
+      - name: Verify Maven version
+        run: mvn --version
       - name: Run test
         run: mvn test
       - name: Publish to Central Repository
