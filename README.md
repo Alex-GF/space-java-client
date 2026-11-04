@@ -1,5 +1,30 @@
 # Space Java Client
 
+## Release 0.5.0
+
+This minor release preserves existing public methods and adds subscription reads, contract events,
+multiorganization token claims, event deduplication and JWKS verification. Backend SDKs also
+provide pricing YAML reads, novation previews, optimistic concurrency and opt-in idempotent retries.
+Use a SPACE server advertising the required `X-Space-Capabilities`; merging server changes alone
+does not deploy them. Read `userId` through the provided helper: `sub` is opaque.
+
+### Detailed consumption reversions
+
+`features.revertConsumptionDetails(userId, featureId, consumptionId[, writeOptions])` preserves the server's refund details. The existing boolean
+`revertConsumption` / `revert_consumption` remains available and unchanged.
+
+| SPACE response | Detailed result |
+| --- | --- |
+| 204 | Found; nothing omitted. No per-limit amounts were returned (`reverted` is absent/null). |
+| 200 | Found; `reverted` contains amounts and `skipped` identifies limits which no longer exist. |
+| 404 | Not found; nothing was changed by this request. |
+| 409 | An API error is propagated, including a disabled service or `IDEMPOTENCY_STATE_CHANGED`; no automatic retry. |
+
+The result is `ConsumptionRevertResult`: consumption ID, `found`, optional `reverted` amounts and
+`skipped` limit IDs (Python uses `consumption_id`; Java uses getters and `isFound()`). To retry one
+operation across process restarts, store and reuse its idempotency key. A new key means a new operation.
+A successful signature still requires the application to match the token's user to its authenticated user.
+
 Java client library for [Space](https://github.com/isa-group/space) - A pricing-driven self-adaptation platform for SaaS applications.
 
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.isa-group/space-java-client.svg)](https://search.maven.org/artifact/io.github.isa-group/space-java-client)
@@ -28,7 +53,7 @@ Add the following dependency to your `pom.xml`:
 <dependency>
     <groupId>io.github.isa-group</groupId>
     <artifactId>space-java-client</artifactId>
-    <version>0.3.0</version>
+    <version>0.5.0</version>
 </dependency>
 ```
 
@@ -219,12 +244,71 @@ FeatureEvaluationResult result = client.features.evaluate(
     false  // server
 );
 
-// Revert evaluation (for failed transactions)
-boolean reverted = client.features.revertEvaluation("user123", "serviceA-featureX");
+// Give back exactly that consumption (for failed transactions); see "Consumption, Retries and
+// Idempotency-Key" below. revertEvaluation(userId, featureId) is deprecated.
+boolean reverted = client.features.revertConsumption("user123", "serviceA-featureX", result.getConsumptionId());
 
 // Generate pricing token
 String token = client.features.generateUserPricingToken("user123");
 ```
+
+### Consumption, Retries and Idempotency-Key
+
+Consumptions (`evaluate` with a consumption), reverts, contract creation, novations (single and by
+group) and usage level changes are writes that must not be applied twice when a request is retried
+after a timeout or a dropped connection. Each of these calls sends an `Idempotency-Key` header. On
+a SPACE with the `idempotency-key` capability, a request repeated with the same key gets the stored
+outcome of the first one (`Idempotent-Replayed: true`) and applies nothing; an older SPACE ignores
+the header. Evaluations without a consumption and reads carry no key.
+
+- **Generated keys.** By default the client creates a random UUID per call and reuses it for that
+  call's own retries, which covers retries inside one process.
+- **Your own key.** When the operation may be retried after the process restarts (a job queue, an
+  outbox, a message handler), create the key once, store it with the operation and pass it on every
+  attempt: `WriteOptions.withIdempotencyKey(key)`, or `NovationOptions.idempotencyKey(key)` for
+  `novate`. Use a new key for each new operation, and a new key after correcting a request SPACE
+  refused with a `4xx`. With a key of your own the client first checks that SPACE advertises
+  `idempotency-key` and throws `SpaceFeatureUnsupportedException` (`isWritten() == false`) if it
+  does not. A key that is not 1 to 255 characters is rejected with `IllegalArgumentException`.
+- **Retries** are off by default (`setRetries(0)`). With `options.setRetries(n)` (0 to 10) the
+  client retries those keyed writes, with the same key and the same request, after a
+  `SpaceConnectionException`, a `5xx` or a `409 IDEMPOTENCY_IN_PROGRESS`, and only while SPACE
+  advertises `idempotency-key` (without it each retry could be applied again). It waits
+  `Retry-After` when SPACE sends one (and stops if that is longer than `retryMaxDelayMs`), otherwise
+  an exponential backoff with jitter from `retryBaseDelayMs` (250 ms) up to `retryMaxDelayMs`
+  (10 s). Other `4xx` and requests without a key are never retried. (OkHttp's own transparent
+  retry of a failed connection, on by default, resends the same headers, key included.)
+- The overloads that take `WriteOptions` (and `novate`, `revertConsumption`) throw their failures;
+  the older overloads still log them and return `null` (`false`, or an evaluation whose
+  `getError().getCode()` is `IO_ERROR` or the idempotency code) as before, now with a generated key.
+
+```java
+SpaceConnectionOptions options = new SpaceConnectionOptions("http://localhost:3000", "your-api-key");
+options.setRetries(2);
+SpaceClient client = new SpaceClient(options);
+
+// job.getIdempotencyKey() = UUID.randomUUID().toString(), created and stored when the job was enqueued.
+FeatureEvaluationResult result = client.features.evaluate(job.getUserId(), "acme-exports",
+        Collections.singletonMap("acme-maxExports", 1), WriteOptions.withIdempotencyKey(job.getIdempotencyKey()));
+if (!result.getEval()) {
+    return; // over the limit: nothing was consumed
+}
+try {
+    runExport(job);
+} catch (RuntimeException e) {
+    // Give back exactly this consumption, whatever happened meanwhile.
+    client.features.revertConsumption(job.getUserId(), "acme-exports", result.getConsumptionId(),
+            WriteOptions.withIdempotencyKey(job.getIdempotencyKey() + ":revert"));
+    throw e;
+}
+```
+
+With `atomic-usage-limits`, SPACE applies a consumption only if every amount fits its limit, also
+under concurrency; one that does not fit answers `getEval() == false` and consumes nothing. A
+`consumptionId` stays revertible for SPACE's `CONSUMPTION_RETENTION_SECONDS` (24 h by default), and
+keys are remembered for `IDEMPOTENCY_KEY_TTL_SECONDS` (24 h by default). `revertConsumption` returns
+`false` when SPACE does not know the id (404) and throws `SpaceFeatureUnsupportedException` without
+sending anything on a SPACE without `atomic-usage-limits`.
 
 ### Caching
 
@@ -302,6 +386,13 @@ client.on("error", error -> {
     System.err.println("WebSocket error: " + error);
 });
 
+// Contract events of the API key's organisation (authenticated /contracts namespace)
+client.on("contract_novated", data -> {
+    ContractEventDetails details = (ContractEventDetails) data;
+    System.out.println(details.getUserId() + " is now at " + details.getContractVersion()
+            + " for " + details.getServices());
+});
+
 // Connect to WebSocket
 client.connect();
 
@@ -314,6 +405,297 @@ client.removeAllListeners();
 // Disconnect
 client.disconnect();
 ```
+
+### Pricing Pages
+
+A host backend (for example a Spring service holding the SPACE org key) renders a pricing page
+with the version a visitor would get, or with the version a signed-in customer is on:
+
+```java
+import io.github.isagroup.spaceclient.exceptions.PricingYamlUnavailableException;
+import io.github.isagroup.spaceclient.types.*;
+
+// Signed-out visitor: the version SPACE assigns to new contracts.
+NewContractsPricing current = client.services.getNewContractsPricing("acme");
+PricingYaml pricing = client.pricings.getYaml("acme", current.getVersion());
+// current.getSource(): "sphere-policy" | "default" | "latest-active"
+
+// Signed-in customer: the version of THEIR contract.
+ContractPricings mine = client.contracts.getPricings("user123");
+ContractServicePricing acme = mine.getServices().get("acme");
+acme.getVersion(); acme.isArchived(); acme.getPlan(); acme.getAddOns(); acme.getNewContractsVersion();
+PricingYaml theirs = client.pricings.getYaml("acme", acme.getVersion());
+
+// The file is returned byte for byte; keep its ETag to revalidate cheaply.
+PricingYaml again = client.pricings.getYaml("acme", acme.getVersion(), theirs.getEtag());
+if (again.isNotModified()) {
+    // reuse theirs.getYaml()
+}
+```
+
+### Changing a Subscription Safely
+
+Preview first, then apply with the `contractVersion` the preview was computed on. If anything
+changed the contract in between, SPACE answers 412 and the client throws
+`ContractChangedException` instead of overwriting it:
+
+```java
+import io.github.isagroup.spaceclient.exceptions.ContractChangedException;
+import io.github.isagroup.spaceclient.exceptions.SpaceFeatureUnsupportedException;
+import io.github.isagroup.spaceclient.types.*;
+
+Subscription change = new Subscription();          // contractedServices left empty:
+change.setSubscriptionPlans(Map.of("acme", "growth")); // keep the versions or let the policy decide
+change.setSubscriptionAddOns(Map.of("acme", Map.of("extraStorage", 2)));
+
+NovationPreview preview = client.contracts.previewNovation("user123", change, true);
+if (!preview.isValid()) {
+    for (NovationError error : preview.getErrors()) {
+        if (error.is(NovationErrorCode.ADDON_NOT_AVAILABLE)) { /* ... */ }
+        System.out.println(error.getCode() + " " + error.getPath() + ": " + error.getMessage());
+    }
+} else {
+    try {
+        Contract updated = client.contracts.novate("user123", preview.getEffective(),
+                NovationOptions.expecting(preview.getContractVersion()).keepBillingPeriod(true));
+        updated.getContractVersion(); // the new version
+    } catch (ContractChangedException e) {
+        // Changed meanwhile: re-read, show the customer, ask again.
+        System.out.println("Current version: " + e.getContractVersion());
+    } catch (SpaceFeatureUnsupportedException e) {
+        // This SPACE cannot honour the option (e.getCapability()).
+        if (e.isWritten()) {
+            // The change WAS applied without the guarantee: e.getContract()
+        }
+    }
+}
+```
+
+- `previewNovation` writes nothing and leaves the cache alone. An invalid change is an answer
+  (`isValid() == false`), not an exception. Unknown error codes are kept as strings
+  (`getKnownCode()` returns `null` for them).
+- The expected version is sent as `If-Match`. `NovationOptions.expecting(null)` or `""` throws
+  `IllegalArgumentException`: a version that was never known must not quietly turn a conditional
+  novation into an unconditional one. For an unconditional novation, do not set it.
+  `keepBillingPeriod(true)` sends `?keepBillingPeriod=true`: history is still recorded but the
+  billing period is not restarted.
+- `rejectPrivate(true)` sends `?rejectPrivate=true`, asking SPACE to refuse private plans and
+  add-ons. Rejection is opt-in: without it SPACE accepts them, as before. The same options can be
+  passed to the preview: `previewNovation(userId, subscription, options)`.
+- `novate` throws on every failure. The existing `updateContractSubscription(userId, subscription)`
+  is unchanged: unconditional, one PUT, and `null` on failure.
+- `Contract.getContractVersion()` is filled from the body or, failing that, from the `ETag` of
+  the update response. It is `null` on SPACE versions without it.
+
+> **Older SPACE versions.** A SPACE without optimistic concurrency ignores `If-Match`, one without
+> `keepBillingPeriod` ignores the query and restarts the billing period, and one without
+> `rejectPrivate` accepts private plans. So `novate` does not trust the options blindly. When
+> `expectedContractVersion`, `keepBillingPeriod` or `rejectPrivate` is set:
+>
+> - **Before writing** it checks the `X-Space-Capabilities` header for `contract-version` /
+>   `keep-billing-period` / `reject-private`. The header is read from any SPACE response and
+>   cached per client for `SpaceClient.CAPABILITIES_TTL_MS` (60 s; `client.clearCapabilities()`
+>   forgets it). When nothing recent is known it reads the contract once. If a token is missing it throws
+>   `SpaceFeatureUnsupportedException` (`getCapability()`, `isWritten() == false`) and **writes
+>   nothing**. If that read's `ETag` already differs from the expected version it throws
+>   `ContractChangedException` early; `If-Match` on the PUT is still the atomic check.
+> - **After writing** it throws `SpaceFeatureUnsupportedException` with `isWritten() == true` and
+>   the stored `getContract()` if the answer shows the option was ignored anyway: no `ETag` with an
+>   expected version, or a different `billingPeriod.startDate` with `keepBillingPeriod`. The
+>   user's cache entries are dropped.
+> - `previewNovation` with `keepBillingPeriod` or `rejectPrivate` throws the same exception when
+>   the SPACE that answered does not advertise `keep-billing-period` / `reject-private`.
+>
+> With no option set, nothing is checked and the request is a single PUT.
+
+`getYaml` throws `PricingYamlUnavailableException` when SPACE knows the version but no longer has
+its original file. `getPricings` is never served from cache.
+
+> **Older SPACE versions.** These calls need a SPACE with the subscription-change API. Without it,
+> `getPricings` and `getNewContractsPricing` throw `SpaceApiException` with SPACE's 404. An older
+> SPACE ignores `?format=yaml` and answers with the JSON pricing; `getYaml` then throws
+> `SpaceFeatureUnsupportedException` (`getCapability()` is `pricing-yaml`) instead of returning
+> JSON as if it were the file. Only `application/yaml`, `text/yaml` and their `x-` variants are
+> accepted.
+
+#### Contract events
+
+`contract_created`, `contract_novated`, `contract_deleted` and `contract_renewed` arrive on the
+authenticated `/contracts` namespace, and only for contracts of the API key's organisation. The
+client opens it, sending the key as socket.io `auth: {apiKey: ...}`, when the first contract
+listener is registered, and closes it when the last one is removed. A member user key (`usr_...`)
+must also name its organisation: `options.setOrganizationId("org-1")` makes the handshake send
+`auth: {apiKey: ..., organizationId: "org-1"}`; organisation keys need nothing more. The callback
+receives a `ContractEventDetails` (`userId`, `organizationId`, `contractVersion`, `services`),
+after the user's cache entries have been invalidated; `getContractVersion()` is `null` for
+`contract_deleted`. A key SPACE refuses is reported to the `error` listener. Listeners may be
+registered and removed from any thread.
+
+#### Event ids and occurredAt
+
+`ContractEventDetails` also carries the event's own fields, and pricing listeners receive a
+`PricingEventDetails`, which is the `details` `JSONObject` SPACE sent plus the same getters:
+
+```java
+client.on("contract_novated", data -> {
+    ContractEventDetails details = (ContractEventDetails) data;
+    details.getCode();          // "CONTRACT_NOVATED"
+    details.getEventId();       // "019a2a6b-7c1e-7d3f-9b2a-5c4e8f1a2b3c", the same in every copy
+    details.getOccurredAt();    // Instant: when SPACE stored the change
+    details.getRawOccurredAt(); // "2026-10-27T10:00:00.123Z", as sent
+});
+```
+
+SPACE sends `eventId` and `occurredAt` from the version that advertises `contract-event-ids` in
+`X-Space-Capabilities`. With an older SPACE the getters return `null` (`getOccurredAt()` also
+returns `null` if the value is not a valid date).
+
+#### Delivery guarantees
+
+SPACE events are hints that something changed, not a log of the changes:
+
+- **At most once per connection, no replay.** An event goes to the connections open when it is
+  emitted. While the client is disconnected or reconnecting, events are lost, and SPACE does not
+  resend them.
+- **Repeats are possible.** A consumer with several connections gets one copy per connection, all
+  with the same `eventId`. The client drops a repeated `eventId` before invalidating the cache or
+  calling your listener. It remembers the last 10,000 ids for up to 10 minutes (both namespaces
+  share the window); events without `eventId` are always delivered. Each `SpaceClient` has its own
+  window, so two clients (or two replicas of your backend) each get their copy, which is what each
+  needs to refresh its own cache.
+- **No ordering.** Events may arrive in another order than the changes were stored. Never order
+  events by `eventId` (compare it for equality only), and do not compare `occurredAt` across SPACE
+  instances, whose clocks may differ. `contractVersion` is a hash, not a counter.
+
+So treat a contract event as a reason to re-read the contract (`client.contracts.getContract(userId)`)
+and compare its `contractVersion` with the one you hold: unchanged means nothing to do. A late,
+repeated or out-of-order event then costs one read and changes nothing. (`getContract` returns
+`null` when the contract no longer exists, and also when the call fails; check the log to tell
+them apart.)
+
+After a reconnection, re-read the contracts you hold, because anything that changed while the
+client was disconnected was not announced. The `resync` event tells you when. Its listener
+receives a `ResyncInfo`: `getNamespace()` is `"pricings"` or `"contracts"`, and `isReconnect()` is
+`false` on the namespace's first connection and `true` after that. When `/contracts` reconnects,
+the client first invalidates the cached contracts, evaluations and pricing tokens of every user,
+so these reads go to SPACE:
+
+```java
+client.on("resync", data -> {
+    ResyncInfo info = (ResyncInfo) data;
+    if (ResyncInfo.CONTRACTS.equals(info.getNamespace()) && info.isReconnect()) {
+        refreshCachedContracts(); // e.g. getContract() for each user you hold
+    }
+});
+```
+
+If you read contracts before the first contract listener opened `/contracts`, re-read them on the
+first `resync` too.
+
+The deduplication window is configurable, or can be turned off:
+
+```java
+SpaceConnectionOptions options = new SpaceConnectionOptions("http://localhost:5403", "your-api-key");
+options.setEventDeduplicationMaxEntries(50_000);
+options.setEventDeduplicationWindow(Duration.ofMinutes(30));
+// or options.setEventDeduplication(false) to deliver every copy
+```
+
+### Pricing Tokens
+
+`features.generateUserPricingToken(userId)` returns a JWT signed by SPACE. To read it on the
+backend, for example to know the user's subscription and `contractVersion`, decode it:
+
+```java
+PricingTokenPayload payload = PricingTokenPayload.decode(client.features.generateUserPricingToken("user123"));
+PricingTokenSubscription subscription = payload.getSubscription(); // null for older SPACE versions
+if (subscription != null) {
+    subscription.getContractedServices();
+    subscription.getSubscriptionPlans();
+    subscription.getSubscriptionAddOns();
+    subscription.getContractVersion();
+}
+```
+
+`decode` does **not** verify the signature: use it to read a token you just received from SPACE,
+never to authenticate one a caller sent you.
+
+#### Token claims: `userId`, `organizationId`, `aud`, `iss`
+
+A userId is unique only within its organization, so SPACE versions with per-organization userIds
+(capability `contract-userid-per-org`) issue tokens with these claims:
+
+| Claim | Getter | Value |
+| --- | --- | --- |
+| `sub` | `getSub()` | `urn:space:<organizationId>:<percent-encoded userId>`. Opaque: do not parse it. |
+| `userId` | `getUserId()` | The userId as stored in SPACE (not encoded). |
+| `organizationId` | `getOrganizationId()` | The organization of the contract. |
+| `aud` | `getAud()` | The organization the token is for (same value as `organizationId`), as a list. |
+| `iss` | `getIss()` | The SPACE server: its `JWT_ISSUER`, `space` by default. |
+
+Tokens of older SPACE versions only have the bare userId in `sub`; the other getters then return
+`null`. `resolveUserId()` returns `getUserId()` and falls back to `getSub()` only when the token has
+no `userId` claim (an older server); it never parses the URN. Code that used `getSub()` as the
+userId should switch to it:
+
+```java
+String userId = PricingTokenPayload.decode(token).resolveUserId();
+```
+
+When a token is checked on the server side, also compare `getOrganizationId()` (or `getAud()`) with
+your organization: the same userId can exist in another organization of the same SPACE.
+
+#### Verifying pricing tokens
+
+SPACE versions with the capability `pricing-token-jwks` sign pricing tokens with ES256 and publish
+the public keys at `GET {url}/api/v1/.well-known/jwks.json` (no API key). A token that comes back to
+your backend (from a browser, a queue, another service) can then be verified with public material
+only:
+
+```java
+PricingTokenPayload payload = client.features.verifyPricingToken(token, "my-org-id");
+String userId = payload.resolveUserId();
+```
+
+or, without a client:
+
+```java
+PricingTokenVerifier verifier = PricingTokenVerifier.builder("https://space.example.com")
+        .organizationId("my-org-id")
+        .issuer("space")                     // the JWT_ISSUER of your SPACE (default "space")
+        .leeway(Duration.ofSeconds(5))       // tolerance for exp (default 0)
+        .build();
+PricingTokenPayload payload = verifier.verify(token);
+```
+
+What is checked:
+
+- The signature is ES256 by a key of the JWKS, chosen by the token's `kid`. Any other `alg`
+  (`HS256`, `none`, ...) is rejected, and so is a token with a `jwk`, `jku`, `x5u` or `x5c` header:
+  keys only come from the JWKS URL of your SPACE.
+- `exp` is required and checked (with the leeway).
+- `iss` equals the configured issuer (`space` by default).
+- `aud` and `organizationId` equal the expected organization. It is required: pass it to the call
+  or the builder; `features.verifyPricingToken(token)` uses the `organizationId` of the client
+  options. A userId is only unique within an organization, so a valid signature alone does not tell
+  you the token is for one of your users.
+
+The JWKS is cached for the `max-age` of its response (SPACE sends 5 minutes; 5 minutes also without
+`Cache-Control`, nothing with `no-store`/`no-cache`) and fetched again when a token names a `kid` it
+does not know, at most once per refetch cooldown (default 30 s), so key rotations need nothing on
+your side. The verifier is thread-safe; keep one (or one client) and reuse it. Signatures are
+checked with [Nimbus JOSE + JWT](https://connect2id.com/products/nimbus-jose-jwt), a new dependency
+without transitive dependencies of its own.
+
+Exceptions, all `PricingTokenVerificationException` (a `SpaceException`) with `getCode()`:
+`PricingTokenSignatureException` (forged or tampered token), `PricingTokenExpiredException`
+(`getExpiredAt()`), `PricingTokenAudienceException` (another organization),
+`PricingTokenIssuerException`, `PricingTokenUnknownKeyException` (`getKid()` not published, e.g. a
+removed key), and the base class with `PRICING_TOKEN_INVALID` (malformed token, wrong `alg`,
+forbidden header, missing claims) or `PRICING_TOKEN_JWKS_UNAVAILABLE` (the JWKS could not be
+fetched). A SPACE that does not publish its keys (older versions, or one in the deprecated
+`PRICING_TOKEN_ALG=HS256` mode) throws `SpaceFeatureUnsupportedException` with
+`getCapability()` = `pricing-token-jwks`.
 
 ### Cleanup
 
@@ -332,14 +714,17 @@ Main client class for interacting with the Space platform.
 
 **Methods:**
 - `isConnectedToSpace()`: Check if connected to Space API
+- `hasCapability(String token)`: Whether SPACE advertises an `X-Space-Capabilities` token (`idempotency-key`, `atomic-usage-limits`...), from a recent response or `GET /healthcheck`
 - `on(String event, Consumer<Object> callback)`: Register event listener
 - `removeListener(String event)`: Remove specific event listener
 - `removeAllListeners()`: Remove all event listeners
 - `connect()`: Connect to WebSocket
-- `disconnect()`: Disconnect from WebSocket
+- `disconnect()`: Disconnect from WebSocket (listeners are kept; `connect()` reconnects)
 - `close()`: Close all connections and cleanup
 - `contracts`: ContractModule instance (for managing contracts)
 - `features`: FeatureModule instance (for evaluating features)
+- `pricings`: PricingModule instance (for reading Pricing2Yaml files)
+- `services`: ServiceModule instance (for service-level information)
 - `cache`: CacheModule instance (for cache management)
 
 ### ContractModule
@@ -348,8 +733,24 @@ Manage user contracts.
 
 **Methods:**
 - `getContract(String userId)`: Retrieve user contract
-- `addContract(ContractToCreate contract)`: Create new contract
-- `updateContractSubscription(String userId, Subscription subscription)`: Update subscription
+- `addContract(ContractToCreate contract[, WriteOptions options])`: Create new contract (with `WriteOptions`: your `Idempotency-Key`, failures thrown)
+- `updateContractSubscriptionByGroupId(String groupId, Subscription subscription[, WriteOptions options])`: Novate every contract of a group
+- `updateContractUsageLevels(String userId, String serviceName, Map<String, Number> increments[, WriteOptions options])`: Usage level increments
+- `updateContractSubscription(String userId, Subscription subscription)`: Update subscription (unconditional; `null` on failure)
+- `novate(String userId, Subscription subscription, NovationOptions options)`: Novation with `expectedContractVersion` (`If-Match`, 412 -> `ContractChangedException`), `keepBillingPeriod`, `rejectPrivate` and `idempotencyKey`; throws on failure, and `SpaceFeatureUnsupportedException` when SPACE cannot honour an option
+- `previewNovation(String userId, Subscription subscription[, boolean keepBillingPeriod | NovationOptions options])`: Dry run (`NovationPreview`); `options` carries `keepBillingPeriod` and `rejectPrivate`
+- `getPricings(String userId)`: Pricing version, status, plan and add-ons of every service of the contract, plus its `contractVersion` (`ContractPricings`)
+
+### PricingModule
+
+**Methods:**
+- `getYaml(String serviceName, String pricingVersion)`: Raw Pricing2Yaml of a version (`PricingYaml`: YAML, ETag, syntax version)
+- `getYaml(String serviceName, String pricingVersion, String etag)`: Conditional variant (`isNotModified()` on 304)
+
+### ServiceModule
+
+**Methods:**
+- `getNewContractsPricing(String serviceName)`: The version SPACE assigns to new contracts (`NewContractsPricing`)
 
 ### FeatureModule
 
@@ -359,9 +760,12 @@ Evaluate features and manage pricing.
 - `evaluate(String userId, String featureId)`: Evaluate feature (read-only)
 - `evaluate(String userId, String featureId, Map<String, Number> consumption)`: Evaluate with consumption
 - `evaluate(String userId, String featureId, Map<String, Number> consumption, boolean details, boolean server)`: Full evaluation
-- `revertEvaluation(String userId, String featureId)`: Revert evaluation
-- `revertEvaluation(String userId, String featureId, boolean revertToLatest)`: Revert with options
+- `evaluate(String userId, String featureId, Map<String, Number> consumption, WriteOptions options)`: Consumption with your `Idempotency-Key`; failures thrown
+- `revertConsumption(String userId, String featureId, String consumptionId[, WriteOptions options])`: Revert exactly the consumption with that `getConsumptionId()` (`false` on 404)
+- `revertEvaluation(String userId, String featureId[, boolean revertToLatest])`: **Deprecated**, use `revertConsumption`
 - `generateUserPricingToken(String userId)`: Generate pricing token
+- `verifyPricingToken(String token)` / `verifyPricingToken(String token, String organizationId)`:
+  Verify a pricing token with the JWKS of SPACE (see [Verifying pricing tokens](#verifying-pricing-tokens))
 
 ## Events
 
@@ -371,17 +775,49 @@ Available WebSocket events:
 - `pricing_archived`: Pricing archived
 - `pricing_actived`: Pricing activated
 - `service_disabled`: Service disabled
+- `contract_created`, `contract_novated`, `contract_deleted`, `contract_renewed`: A contract of the
+  API key's organisation changed (callback receives `ContractEventDetails`)
+- `resync`: A namespace connected or reconnected (callback receives `ResyncInfo`); re-read the
+  contracts you hold after a reconnection, see [Delivery guarantees](#delivery-guarantees)
 - `error`: Connection error
 
 ## Error Handling
 
-All API methods throw `IOException` for network/API errors:
+The methods of the subscription-change API (`pricings.getYaml`, `contracts.getPricings`,
+`contracts.previewNovation`, `contracts.novate`,
+`services.getNewContractsPricing`, `features.revertConsumption` and the overloads that take
+`WriteOptions`) throw unchecked exceptions instead
+of returning `null`:
+
+All of them extend `SpaceException` (unchecked), so one `catch` handles every failure:
+
+- `SpaceApiException`: SPACE refused (non-2xx). Carries `getStatusCode()`, `getMethod()`,
+  `getPath()`, `getBody()` and `getErrorCode()` (the `error` field of a JSON body).
+- `PricingYamlUnavailableException` (a `SpaceApiException`): `404 PRICING_YAML_UNAVAILABLE`.
+- `ContractChangedException` (a `SpaceApiException`): `412 CONTRACT_CHANGED` on a conditional
+  novation (or the same conflict seen on the read before it). Carries `getUserId()`,
+  `getExpectedContractVersion()` and the current `getContractVersion()`; the user's cache entries
+  are invalidated.
+- `SpaceConnectionException`: SPACE could not be reached (the `IOException` is the cause).
+- `SpaceFeatureUnsupportedException`: the connected SPACE lacks a feature the call depends on.
+  `getCapability()` is its `X-Space-Capabilities` token (e.g. `pricing-yaml` when `getYaml`
+  receives JSON from a SPACE that ignores `format=yaml`, or `contract-version` /
+  `keep-billing-period` from `novate`); `isWritten()` says whether SPACE changed anything, and
+  `getContract()` is what it stored when it did.
+- `IdempotencyException` (a `SpaceApiException`, with `getCode()` and `getIdempotencyKey()`) on the
+  keyed writes: `IdempotencyConflictException` (`409 IDEMPOTENCY_CONFLICT`, the key was used for a
+  different request), `IdempotencyInProgressException` (`409 IDEMPOTENCY_IN_PROGRESS` once the
+  retries are spent; `getRetryAfterSeconds()`; retry later with the same key) and
+  `IdempotencyKeyInvalidException` (`400 IDEMPOTENCY_KEY_INVALID`). `SpaceApiException.getHeader`
+  reads the response headers.
+- `SpaceException` itself: SPACE answered 2xx with a body the client cannot read.
+
+The older methods keep their existing behaviour (they log the failure and return `null`):
 
 ```java
-try {
-    Contract contract = client.contracts.getContract("user123");
-} catch (IOException e) {
-    System.err.println("Failed to get contract: " + e.getMessage());
+Contract contract = client.contracts.getContract("user123");
+if (contract == null) {
+    System.err.println("Failed to get contract (see the logs)");
 }
 ```
 
@@ -416,4 +852,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Space Platform](https://github.com/isa-group/space)
 - [API Documentation](https://github.com/isa-group/space/wiki)
 - [Issue Tracker](https://github.com/Alex-GF/space-java-client/issues)
-
