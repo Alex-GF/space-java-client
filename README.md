@@ -53,7 +53,7 @@ Add the following dependency to your `pom.xml`:
 <dependency>
     <groupId>io.github.isa-group</groupId>
     <artifactId>space-java-client</artifactId>
-    <version>0.3.0</version>
+    <version>0.5.0</version>
 </dependency>
 ```
 
@@ -852,4 +852,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Space Platform](https://github.com/isa-group/space)
 - [API Documentation](https://github.com/isa-group/space/wiki)
 - [Issue Tracker](https://github.com/Alex-GF/space-java-client/issues)
-
