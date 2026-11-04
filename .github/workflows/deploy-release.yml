@@ -42,7 +42,8 @@ jobs:
         env:
           MAVEN_VERSION: '3.9.9'
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
+          trap 'echo "Maven setup failed on line $LINENO" >&2' ERR
           archive="apache-maven-${MAVEN_VERSION}-bin.tar.gz"
           install_dir="${RUNNER_TEMP}/sdk-maven"
           base_url="https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries"
