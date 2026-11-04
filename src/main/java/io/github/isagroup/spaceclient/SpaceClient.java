@@ -8,6 +8,7 @@ import io.github.isagroup.spaceclient.modules.ContractModule;
 import io.github.isagroup.spaceclient.modules.FeatureModule;
 import io.github.isagroup.spaceclient.modules.PricingModule;
 import io.github.isagroup.spaceclient.modules.ServiceModule;
+import io.github.isagroup.spaceclient.types.ContractEventDetails;
 import io.github.isagroup.spaceclient.types.SpaceConnectionOptions;
 import io.socket.client.IO;
 import io.socket.client.Manager;
@@ -35,17 +36,25 @@ public class SpaceClient {
 
     private final String httpUrl;
     private final String apiKey;
+    private final String organizationId;
     private final int timeout;
     
     private Socket socketClient;
     private Socket pricingSocketNamespace;
+    private Socket contractSocketNamespace;
     
+    private static final Set<String> CONTRACT_EVENTS = new HashSet<>(Arrays.asList(
+            "contract_created", "contract_novated", "contract_deleted", "contract_renewed"
+    ));
+
     private final Set<String> validEvents = new HashSet<>(Arrays.asList(
             "synchronized", "pricing_created", "pricing_archived", 
-            "pricing_actived", "service_disabled", "error"
+            "pricing_actived", "service_disabled", "error",
+            "contract_created", "contract_novated", "contract_deleted", "contract_renewed"
     ));
     
-    private final Map<String, Consumer<Object>> callbackFunctions = new HashMap<>();
+    // Registered from application threads, read from the socket.io event thread.
+    private final Map<String, Consumer<Object>> callbackFunctions = new java.util.concurrent.ConcurrentHashMap<>();
     
     private final OkHttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -85,6 +94,7 @@ public class SpaceClient {
                 ? url.substring(0, url.length() - 1) + "/api/v1" 
                 : url + "/api/v1";
         this.apiKey = options.getApiKey();
+        this.organizationId = options.getOrganizationId();
         this.timeout = options.getTimeout();
 
         // Initialize ObjectMapper with JavaTimeModule for Date handling
@@ -135,6 +145,7 @@ public class SpaceClient {
         if (connectWhenClosed) {
             connectWhenClosed = false;
             pricingSocketNamespace.connect();
+                if (hasContractListeners()) connectContractSocket();
         }
     };
 
@@ -158,6 +169,7 @@ public class SpaceClient {
         configureSocket();
         // Connect manually after setup
         this.pricingSocketNamespace.connect();
+                if (hasContractListeners()) connectContractSocket();
     }
 
     /**
@@ -184,15 +196,8 @@ public class SpaceClient {
         });
 
         pricingSocketNamespace.on("message", args -> {
-            if (args.length > 0) {
-                JSONObject data = (JSONObject) args[0];
-                String code = data.optString("code", "").toLowerCase();
-                Object details = data.opt("details");
-                
-                Consumer<Object> callback = callbackFunctions.get(code);
-                if (callback != null) {
-                    callback.accept(details);
-                }
+            if (args.length > 0 && args[0] instanceof JSONObject) {
+                dispatchPricingMessage((JSONObject) args[0]);
             }
         });
 
@@ -202,6 +207,96 @@ public class SpaceClient {
                 callback.accept(args.length > 0 ? args[0] : null);
             }
         });
+    }
+
+    /**
+     * Dispatches a message of the {@code /pricings} namespace to its listener. Contract codes are
+     * ignored here: contract events only come from the authenticated {@code /contracts} namespace.
+     */
+    void dispatchPricingMessage(JSONObject data) {
+        String code = data.optString("code", "").toLowerCase();
+        if (CONTRACT_EVENTS.contains(code)) {
+            return;
+        }
+        Consumer<Object> callback = callbackFunctions.get(code);
+        if (callback != null) {
+            callback.accept(data.opt("details"));
+        }
+    }
+
+    /**
+     * Dispatches a message of the {@code /contracts} namespace: invalidates the cached data of the
+     * affected user first (so a callback that re-reads gets fresh data), then calls the listener
+     * with a {@link ContractEventDetails}.
+     */
+    void dispatchContractMessage(JSONObject data) {
+        String code = data.optString("code", "").toLowerCase();
+        ContractEventDetails details = ContractEventDetails.fromJson(data.optJSONObject("details"));
+        if (details != null && details.getUserId() != null && cache != null && cache.isEnabled()) {
+            cache.invalidateUser(details.getUserId());
+        }
+        if (!CONTRACT_EVENTS.contains(code)) {
+            return;
+        }
+        Consumer<Object> callback = callbackFunctions.get(code);
+        if (callback != null) {
+            callback.accept(details);
+        }
+    }
+
+    /**
+     * Opens the authenticated {@code /contracts} namespace (creating and wiring it on first use).
+     * The API key goes in the socket.io {@code auth} payload: {@code {apiKey: "..."}}, plus
+     * {@code organizationId} when configured (member user keys).
+     */
+    private synchronized void connectContractSocket() {
+        if (socketClient == null) {
+            return;
+        }
+        if (contractSocketNamespace == null) {
+            io.socket.client.Manager.Options opts = new io.socket.client.Manager.Options();
+            opts.auth = new HashMap<>();
+            opts.auth.put("apiKey", apiKey);
+            if (organizationId != null && !organizationId.isEmpty()) {
+                // Member user keys act in an organisation they name.
+                opts.auth.put("organizationId", organizationId);
+            }
+            contractSocketNamespace = socketClient.io().socket("/contracts", opts);
+            contractSocketNamespace.on("message", args -> {
+                if (args.length > 0 && args[0] instanceof JSONObject) {
+                    dispatchContractMessage((JSONObject) args[0]);
+                }
+            });
+            contractSocketNamespace.on(Socket.EVENT_CONNECT_ERROR, args -> {
+                Consumer<Object> callback = callbackFunctions.get("error");
+                if (callback != null) {
+                    callback.accept(args.length > 0 ? args[0] : null);
+                }
+            });
+        }
+        if (!contractSocketNamespace.connected()) {
+            contractSocketNamespace.connect();
+        }
+    }
+
+    private synchronized void disconnectContractSocket() {
+        if (contractSocketNamespace != null) {
+            contractSocketNamespace.disconnect();
+        }
+    }
+
+    private boolean hasContractListeners() {
+        for (String event : CONTRACT_EVENTS) {
+            if (callbackFunctions.containsKey(event)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The {@code /contracts} namespace socket, or {@code null} if no contract listener was registered. */
+    Socket contractSocketNamespace() {
+        return contractSocketNamespace;
     }
 
     /**
@@ -236,6 +331,12 @@ public class SpaceClient {
     /**
      * Registers a callback function for a specific event
      *
+     * Contract events ({@code contract_created}, {@code contract_novated},
+     * {@code contract_deleted}, {@code contract_renewed}) are received on the authenticated
+     * {@code /contracts} namespace, only for contracts of the API key's organisation; registering
+     * the first one opens it. Their callback receives a {@link ContractEventDetails}, after the
+     * affected user's cache entries have been invalidated.
+     *
      * @param event The name of the event to listen for
      * @param callback The function to execute when the event is triggered
      */
@@ -243,6 +344,9 @@ public class SpaceClient {
         String eventLower = event.toLowerCase();
         if (validEvents.contains(eventLower)) {
             callbackFunctions.put(eventLower, callback);
+            if (CONTRACT_EVENTS.contains(eventLower)) {
+                connectContractSocket();
+            }
         } else {
             logger.warn("No handler for event: {}", event);
         }
@@ -257,6 +361,9 @@ public class SpaceClient {
         String eventLower = event.toLowerCase();
         if (validEvents.contains(eventLower)) {
             callbackFunctions.remove(eventLower);
+            if (!hasContractListeners()) {
+                disconnectContractSocket();
+            }
         } else {
             logger.warn("No handler to remove for event: {}", event);
         }
@@ -267,6 +374,7 @@ public class SpaceClient {
      */
     public void removeAllListeners() {
         callbackFunctions.clear();
+        disconnectContractSocket();
     }
 
     /**
@@ -285,6 +393,7 @@ public class SpaceClient {
                 connectWhenClosed = true;
             } else {
                 pricingSocketNamespace.connect();
+                if (hasContractListeners()) connectContractSocket();
             }
         });
     }
@@ -301,6 +410,7 @@ public class SpaceClient {
         }
         EventThread.exec(() -> {
             connectWhenClosed = false;
+            disconnectContractSocket();
             // Not only when connected: while SPACE is unreachable the socket is retrying, and this
             // stops it. With no namespace left active, socket.io closes the manager and cancels
             // the pending reconnection.
@@ -316,6 +426,7 @@ public class SpaceClient {
      */
     public void close() {
         disconnect();
+        if (contractSocketNamespace != null) contractSocketNamespace.off();
         if (pricingSocketNamespace != null) {
             // The client is not reused after close(): drop the socket handlers.
             pricingSocketNamespace.off();
